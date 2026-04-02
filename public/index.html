@@ -806,7 +806,7 @@ function App() {
                 const isCatCollapsed = collapsedCats[cat.name];
                 const selProduct = selected[cat.name] ? cat.products.find(p => p.id === selected[cat.name]) : null;
                 return (
-                  <div className="category" key={cat.name}>
+                  <div className="category" key={room.id + ':' + ci}>
                     <div className="category-header">
                       <div className="category-header-left">
                         <div className="cat-move-btns">
