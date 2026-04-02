@@ -613,7 +613,7 @@ function parseBlurb(text, citations) {
   return html;
 }
 
-function Card({ item, selected, justSelected, viewMode, onToggle, onDelete, onBlurbLoaded, onUpdateQty, onEdit, onMoveUp, onMoveDown, onAddComment, onDeleteComment, isFirst, isLast }) {
+function Card({ item, selected, justSelected, viewMode, onToggle, onDelete, onBlurbLoaded, onUpdateQty, onEdit, onMoveUp, onMoveDown, onAddComment, onDeleteComment, canComment, isFirst, isLast }) {
   const [blurbLoading, setBlurbLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -726,10 +726,14 @@ function Card({ item, selected, justSelected, viewMode, onToggle, onDelete, onBl
                   ))}
                 </div>
               )}
-              <div className="comment-form">
-                <input className="comment-input" value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." onKeyDown={e => { if (e.key === 'Enter' && commentText.trim()) { onAddComment(commentText); setCommentText(''); } }} />
-                <button className="comment-send" disabled={!commentText.trim()} onClick={() => { onAddComment(commentText); setCommentText(''); }}>Send</button>
-              </div>
+              {canComment ? (
+                <div className="comment-form">
+                  <input className="comment-input" value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." onKeyDown={e => { if (e.key === 'Enter' && commentText.trim()) { onAddComment(commentText); setCommentText(''); } }} />
+                  <button className="comment-send" disabled={!commentText.trim()} onClick={() => { onAddComment(commentText); setCommentText(''); }}>Send</button>
+                </div>
+              ) : (
+                <div style={{fontSize:'0.78rem', color:'#9ca3af', fontStyle:'italic', padding:'4px 0'}}>Select your name above to comment</div>
+              )}
             </>
           )}
         </div>
@@ -790,10 +794,13 @@ function App() {
   const [viewMode, setViewMode] = useState('grid'); // grid, compact, list
   const [justSelected, setJustSelected] = useState(null);
   const toast = useToast();
+  const [people, setPeople] = useState([]);
   const [userName, setUserName] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('name') || localStorage.getItem('renopicker_name') || '';
   });
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
 
   useEffect(() => {
     fetch(API_BASE + '/api/data')
@@ -801,6 +808,7 @@ function App() {
       .then(resp => {
         if (resp.rooms) setRooms(resp.rooms);
         if (resp.selected) setSelected(resp.selected);
+        if (resp.people) setPeople(resp.people);
       })
       .catch(err => console.error('Failed to load:', err))
       .finally(() => setLoading(false));
@@ -980,6 +988,22 @@ function App() {
     toast.add('Category removed', { icon: '🗑️', duration: 3200, undo: () => { clearTimeout(timer); if (deleted) setRooms(prev => prev.map(r => r.id === roomId ? { ...r, categories: [...r.categories, deleted] } : r)); } });
   };
 
+  const pickUser = (name) => { setUserName(name); localStorage.setItem('renopicker_name', name); };
+
+  const addPerson = async (name) => {
+    if (!name.trim()) return;
+    try {
+      const resp = await fetch(API_BASE + '/api/people', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) });
+      const json = await resp.json();
+      if (json.person && !people.find(p => p.name === json.person.name)) {
+        setPeople(prev => [...prev, json.person].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      pickUser(name.trim());
+    } catch {}
+    setAddingPerson(false);
+    setNewPersonName('');
+  };
+
   const addComment = async (catId, productId, body) => {
     if (!body.trim()) return;
     const author = userName || 'Anonymous';
@@ -1025,11 +1049,34 @@ function App() {
         <h1>RenoPicker</h1>
         <p>Select products, compare options, track your budget.</p>
         <div className="context">Clinton Hill Coops — Brooklyn, NY</div>
-        {!userName && <div style={{marginTop: 12, display:'flex', gap: 8, justifyContent:'center', alignItems:'center'}}>
-          <input style={{padding:'6px 12px', border:'1.5px solid #e5e7eb', borderRadius: 8, fontSize:'0.88rem', outline:'none', fontFamily:'inherit', width: 160, textAlign:'center'}} placeholder="Your name" onKeyDown={e => { if (e.key === 'Enter' && e.target.value.trim()) { setUserName(e.target.value.trim()); localStorage.setItem('renopicker_name', e.target.value.trim()); }}} />
-          <span style={{fontSize:'0.78rem', color:'#9ca3af'}}>for comments</span>
-        </div>}
-        {userName && <div style={{marginTop: 8, fontSize:'0.82rem', color:'#6b7280'}}>Commenting as <strong style={{color:'#1a1a2e'}}>{userName}</strong> <button onClick={() => { setUserName(''); localStorage.removeItem('renopicker_name'); }} style={{background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:'0.75rem', textDecoration:'underline'}}>change</button></div>}
+        <div style={{marginTop: 12, display:'flex', gap: 8, justifyContent:'center', alignItems:'center', flexWrap:'wrap'}}>
+          {!userName ? (
+            <>
+              <span style={{fontSize:'0.82rem', color:'#6b7280'}}>Who are you?</span>
+              {people.map(p => (
+                <button key={p.id} onClick={() => pickUser(p.name)} style={{background:'white', border:'1.5px solid #e5e7eb', borderRadius: 20, padding:'5px 14px', fontSize:'0.82rem', cursor:'pointer', fontWeight: 500, fontFamily:'inherit', transition:'all 0.15s'}}
+                  onMouseEnter={e => { e.target.style.borderColor='#3b82f6'; e.target.style.color='#3b82f6'; }}
+                  onMouseLeave={e => { e.target.style.borderColor='#e5e7eb'; e.target.style.color='#1a1a2e'; }}>{p.name}</button>
+              ))}
+              {addingPerson ? (
+                <div style={{display:'flex', gap: 4}}>
+                  <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} autoFocus placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') addPerson(newPersonName); if (e.key === 'Escape') { setAddingPerson(false); setNewPersonName(''); } }}
+                    style={{padding:'5px 10px', border:'1.5px solid #3b82f6', borderRadius: 20, fontSize:'0.82rem', outline:'none', fontFamily:'inherit', width: 120}} />
+                  <button onClick={() => addPerson(newPersonName)} disabled={!newPersonName.trim()} style={{background:'#3b82f6', color:'white', border:'none', borderRadius: 20, padding:'5px 12px', fontSize:'0.78rem', cursor:'pointer', fontWeight: 600}}>Add</button>
+                </div>
+              ) : (
+                <button onClick={() => setAddingPerson(true)} style={{background:'none', border:'1.5px dashed #d1d5db', borderRadius: 20, padding:'5px 14px', fontSize:'0.82rem', cursor:'pointer', color:'#9ca3af', fontFamily:'inherit', transition:'all 0.15s'}}
+                  onMouseEnter={e => { e.target.style.borderColor='#3b82f6'; e.target.style.color='#3b82f6'; }}
+                  onMouseLeave={e => { e.target.style.borderColor='#d1d5db'; e.target.style.color='#9ca3af'; }}>+ New person</button>
+              )}
+            </>
+          ) : (
+            <span style={{fontSize:'0.82rem', color:'#6b7280'}}>
+              Hey <strong style={{color:'#1a1a2e'}}>{userName}</strong>
+              <button onClick={() => { setUserName(''); localStorage.removeItem('renopicker_name'); }} style={{background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:'0.75rem', textDecoration:'underline', marginLeft: 6}}>switch</button>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="budget-banner">
@@ -1122,7 +1169,8 @@ function App() {
                               onMoveUp={() => moveProduct(cat.id, item.id, -1)}
                               onMoveDown={() => moveProduct(cat.id, item.id, 1)}
                               onAddComment={(body) => addComment(cat.id, item.id, body)}
-                              onDeleteComment={(commentId) => deleteComment(cat.id, item.id, commentId)} />
+                              onDeleteComment={(commentId) => deleteComment(cat.id, item.id, commentId)}
+                              canComment={!!userName} />
                           ))}
                         </div>
                       ) : <div className="empty"><div className="empty-icon">📦</div>No products yet<div className="empty-hint">Use Import or + Add above to get started</div></div>}

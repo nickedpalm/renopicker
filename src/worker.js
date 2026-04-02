@@ -33,12 +33,13 @@ async function handleAPI(request, env, path, cors) {
 
   // GET /api/data — full state: rooms, categories (with search_query), products, selections
   if (path === '/api/data' && method === 'GET') {
-    const [rooms, categories, products, selections, comments] = await Promise.all([
+    const [rooms, categories, products, selections, comments, people] = await Promise.all([
       db.prepare('SELECT * FROM rooms ORDER BY sort_order').all(),
       db.prepare('SELECT * FROM categories ORDER BY sort_order').all(),
       db.prepare('SELECT * FROM products ORDER BY category_id, sort_order, created_at').all(),
       db.prepare('SELECT * FROM selections').all(),
       db.prepare('SELECT * FROM comments ORDER BY created_at').all(),
+      db.prepare('SELECT * FROM people ORDER BY name').all(),
     ]);
 
     // Group categories by room
@@ -91,7 +92,7 @@ async function handleAPI(request, env, path, cors) {
       if (s.product_id) selected[s.category_id] = s.product_id;
     }
 
-    return json({ rooms: roomList, selected });
+    return json({ rooms: roomList, selected, people: people.results });
   }
 
   // --- Rooms ---
@@ -254,6 +255,24 @@ async function handleAPI(request, env, path, cors) {
     }
     if (batch.length > 0) await db.batch(batch);
     return json({ success: true });
+  }
+
+  // --- People ---
+
+  // POST /api/people
+  if (path === '/api/people' && method === 'POST') {
+    const { name } = await request.json();
+    if (!name) return json({ error: 'name required' }, 400);
+    const id = crypto.randomUUID();
+    try {
+      await db.prepare('INSERT INTO people (id, name) VALUES (?, ?)').bind(id, name.trim()).run();
+    } catch (e) {
+      // Unique constraint — person already exists
+      const existing = await db.prepare('SELECT * FROM people WHERE name = ?').bind(name.trim()).first();
+      if (existing) return json({ success: true, person: existing });
+      throw e;
+    }
+    return json({ success: true, person: { id, name: name.trim() } });
   }
 
   // --- Comments ---
