@@ -21,18 +21,10 @@ export default {
       }
     }
 
-    return await serveHTML(env);
+    // Static assets (index.html) are served automatically by Cloudflare
+    return env.ASSETS.fetch(request);
   }
 };
-
-async function serveHTML(env) {
-  const ghUrl = env.GITHUB_RAW_URL;
-  const resp = await fetch(ghUrl, { cf: { cacheTtl: 300, cacheEverything: true } });
-  const html = await resp.text();
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=300' },
-  });
-}
 
 async function handleAPI(request, env, path, cors) {
   const db = env.DB;
