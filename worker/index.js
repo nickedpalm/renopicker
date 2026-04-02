@@ -22,17 +22,10 @@ export default {
       // Use Perplexity to extract product data, then try to get a working image
       const data = await extractProductFromUrl(PPLX_KEY, url);
 
-      // Try to verify the Perplexity image works, fall back to og:image from direct fetch
-      let image = data.image;
-      if (image) {
-        try {
-          const imgResp = await fetch(image, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'follow' });
-          if (!imgResp.ok) image = null;
-        } catch { image = null; }
-      }
-      if (!image) {
-        image = await extractOgImage(url);
-      }
+      // Try to verify the image works, with multiple fallbacks
+      let image = await verifyImage(data.image);
+      if (!image) image = await extractOgImage(url);
+      if (!image) image = await findImageViaPerplexity(PPLX_KEY, data.name);
       data.image = image;
 
       return Response.json({ success: true, data: { ...data, url } }, { headers: cors });
@@ -41,6 +34,53 @@ export default {
     }
   }
 };
+
+async function verifyImage(imageUrl) {
+  if (!imageUrl) return null;
+  try {
+    const resp = await fetch(imageUrl, {
+      method: 'HEAD',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+      redirect: 'follow',
+    });
+    if (resp.ok) {
+      const ct = resp.headers.get('content-type') || '';
+      // Accept if content-type is image or if URL looks like an image
+      if (ct.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|avif)/i.test(imageUrl)) return imageUrl;
+      // Some CDNs serve images with generic content types
+      if (resp.headers.get('content-length') > 5000 && !ct.startsWith('text/')) return imageUrl;
+    }
+    return null;
+  } catch { return null; }
+}
+
+async function findImageViaPerplexity(apiKey, productName) {
+  try {
+    const resp = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          { role: 'system', content: 'Find a JPEG or PNG product image URL that is directly accessible and publicly hosted. Return ONLY the URL. The image URL MUST end in .jpg, .jpeg, .png, or .webp. Try manufacturer websites, Amazon product images (m.media-amazon.com), Best Buy (pisces.bbystatic.com), or appliance review sites. Do NOT return .tif or .svg URLs.' },
+          { role: 'user', content: 'Find a .jpg or .png product image URL for: ' + productName }
+        ],
+        max_tokens: 200
+      }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = (data.choices?.[0]?.message?.content || '').trim();
+    // Extract all URLs and try each one
+    const urls = text.match(/https?:\/\/[^\s"'<>)]+/gi) || [];
+    for (const u of urls) {
+      const clean = u.replace(/[.,;:!?)]+$/, ''); // strip trailing punctuation
+      const verified = await verifyImage(clean);
+      if (verified) return verified;
+    }
+    return null;
+  } catch { return null; }
+}
 
 async function extractOgImage(url) {
   try {
@@ -92,7 +132,7 @@ Return this exact JSON structure:
   "dim": "dimensions like 29.75\\"W x 69\\"H x 27\\"D",
   "notes": "any notable features or caveats",
   "price": 0,
-  "image": "direct URL to a product image (must be a real image URL ending in .jpg/.png/.webp or from a CDN)",
+  "image": "URL to a product image. IMPORTANT: Use an image URL from a major CDN or the manufacturer's official site (e.g. images.thdstatic.com, m.media-amazon.com, pisces.bbystatic.com, media.kohlsimg.com, or the brand's own website). Do NOT use URLs from retailer domains that block hotlinking. The URL must be directly accessible.",
   "blurb": "2-3 sentence review for a Brooklyn apartment renovation (Clinton Hill Coops, 1940s co-op). Focus on fit for compact NYC kitchen, real review insights, energy efficiency, value. Under 60 words.",
   "pros": ["pro 1", "pro 2", "pro 3"],
   "cons": ["con 1", "con 2"],

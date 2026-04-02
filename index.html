@@ -352,7 +352,7 @@ function Card({ item, selected, onToggle, onDelete, onBlurbLoaded, onUpdateQty }
   return (
     <div className={`card${selected ? ' selected' : ''}`} onClick={onToggle}>
       <div className="card-actions-bar">
-        <button className="delete-btn" title="Remove" onClick={e => { e.stopPropagation(); onDelete(); }}>&times;</button>
+        <button className="delete-btn" title="Remove" onClick={e => { e.stopPropagation(); if (confirm('Remove this product?')) onDelete(); }}>&times;</button>
       </div>
       <div className="card-check"><CheckIcon /></div>
       {item.image ? <img className="card-img" src={item.image} alt={item.name} onError={e => { e.target.style.display='none'; }} /> : <div className="card-img-placeholder">&#128444;</div>}
@@ -627,7 +627,7 @@ function App() {
                   <button className="move-btn" disabled={ri === 0} onClick={() => moveRoom(room.id, -1)} title="Move up">&#9650;</button>
                   <button className="move-btn" disabled={ri === rooms.length - 1} onClick={() => moveRoom(room.id, 1)} title="Move down">&#9660;</button>
                 </div>
-                <button className="room-delete-btn" onClick={() => deleteRoom(room.id)}>Remove</button>
+                <button className="room-delete-btn" onClick={() => { if (confirm('Remove "' + room.name + '" and all its categories?')) deleteRoom(room.id); }}>Remove</button>
               </div>
             </div>
 
@@ -648,7 +648,7 @@ function App() {
                         <input className="cat-name-input" value={cat.name} onChange={e => updateCatName(room.id, cat.name, e.target.value)} />
                         <input className="cat-search-input" value={cat.search_query} onChange={e => updateCatSearch(room.id, cat.name, e.target.value)} placeholder="search query..." title="Google Shopping search query" />
                         {selProduct && <span className="cat-selected-badge">{selProduct.name.slice(0,25)}{selProduct.name.length > 25 ? '...' : ''} ${itemTotal(selProduct).toLocaleString()}</span>}
-                        <button className="cat-delete-btn" title="Remove category" onClick={() => deleteCategory(room.id, cat.name)}>&times;</button>
+                        <button className="cat-delete-btn" title="Remove category" onClick={() => { if (confirm('Remove "' + cat.name + '" and all its products?')) deleteCategory(room.id, cat.name); }}>&times;</button>
                       </div>
                       <div className="cat-actions">
                         {cat.search_query && <a className="action-btn purple" href={'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(cat.search_query)} target="_blank" rel="noopener">&#128269;</a>}
