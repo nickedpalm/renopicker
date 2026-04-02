@@ -119,6 +119,24 @@ async function handleAPI(request, env, path, cors) {
     return json({ success: true });
   }
 
+  // PUT /api/rooms/reorder — update sort_order for all rooms
+  if (path === '/api/rooms/reorder' && method === 'PUT') {
+    const { order } = await request.json(); // array of room ids
+    const stmt = db.prepare('UPDATE rooms SET sort_order = ? WHERE id = ?');
+    const batch = order.map((id, i) => stmt.bind(i, id));
+    if (batch.length > 0) await db.batch(batch);
+    return json({ success: true });
+  }
+
+  // PUT /api/categories/reorder — update sort_order for categories within a room
+  if (path === '/api/categories/reorder' && method === 'PUT') {
+    const { room_id, order } = await request.json(); // order: array of category names
+    const stmt = db.prepare('UPDATE categories SET sort_order = ? WHERE name = ? AND room_id = ?');
+    const batch = order.map((name, i) => stmt.bind(i, name, room_id));
+    if (batch.length > 0) await db.batch(batch);
+    return json({ success: true });
+  }
+
   // --- Categories ---
 
   // POST /api/categories — add a category
