@@ -219,17 +219,129 @@
   .summary-table .empty-row td { color: #d1d5db; font-style: italic; }
   .summary-thumb { width: 48px; height: 48px; object-fit: contain; border-radius: 6px; background: #f9fafb; }
 
+  /* View toggle */
+  .view-toggle { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 3px; }
+  .view-toggle button { background: none; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; color: #6b7280; font-weight: 500; transition: all 0.15s; white-space: nowrap; }
+  .view-toggle button.active { background: white; color: #1a1a2e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: 600; }
+
+  /* Compact card view */
+  .card-grid.compact { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .compact .card-img { height: 100px; }
+  .compact .card-img-placeholder { height: 60px; font-size: 1.2rem; }
+  .compact .card-body { padding: 10px 12px 12px; }
+  .compact .card-edit-input.name { font-size: 0.9rem; }
+  .compact .card-edit-input.dim,
+  .compact .card-edit-input.notes { font-size: 0.78rem; }
+  .compact .card-review { font-size: 0.75rem; padding: 8px 10px; }
+  .compact .card-review .review-lists { grid-template-columns: 1fr; }
+  .compact .card-qty-row { font-size: 0.75rem; }
+  .compact .card-footer .card-price { font-size: 1rem; }
+  .compact .card-edit-input.price { font-size: 0.9rem; width: 70px; }
+  .compact .blurb-btn { font-size: 0.72rem; padding: 3px 8px; }
+  .compact .card-actions-bar { top: 6px; right: 36px; }
+  .compact .card-check { width: 22px; height: 22px; top: 6px; right: 6px; }
+  .compact .card-check svg { width: 11px; height: 11px; }
+  .compact .delete-btn { width: 22px; height: 22px; font-size: 0.85rem; }
+  .compact .review-features { gap: 3px; }
+  .compact .feature-tag { font-size: 0.62rem; padding: 1px 6px; }
+
+  /* List view */
+  .card-grid.list { display: flex; flex-direction: column; gap: 6px; }
+  .list .card { display: flex; flex-direction: row; align-items: center; border-radius: 8px; border-width: 1.5px; }
+  .list .card-img { width: 64px; height: 64px; min-width: 64px; border-bottom: none; border-right: 1px solid #e5e7eb; border-radius: 0; }
+  .list .card-img-placeholder { width: 64px; height: 64px; min-width: 64px; font-size: 1.2rem; border-bottom: none; border-right: 1px solid #e5e7eb; }
+  .list .card-body { display: flex; align-items: center; gap: 12px; padding: 8px 14px; flex: 1; min-width: 0; flex-wrap: wrap; }
+  .list .card-edit-input.name { font-size: 0.9rem; flex: 1; min-width: 120px; }
+  .list .card-edit-input.dim { font-size: 0.78rem; width: 140px; display: none; }
+  .list .card-edit-input.notes { display: none; }
+  .list .card-review { display: none; }
+  .list .card-qty-row { display: none; }
+  .list .blurb-btn { display: none; }
+  .list .card-footer { margin-left: auto; flex-shrink: 0; }
+  .list .card-footer .card-price { font-size: 1rem; }
+  .list .card-edit-input.price { font-size: 0.95rem; width: 75px; }
+  .list .card-check { position: static; width: 24px; height: 24px; margin-right: 0; flex-shrink: 0; order: -1; }
+  .list .card-check svg { width: 12px; height: 12px; }
+  .list .card-actions-bar { position: static; order: 99; flex-shrink: 0; margin-left: 8px; }
+  .list .delete-btn { width: 24px; height: 24px; font-size: 0.85rem; }
+
+  /* Tablet */
   @media (max-width: 768px) {
-    .budget-banner { flex-direction: column; text-align: center; gap: 16px; }
+    .app { padding: 16px; }
+    .budget-banner { flex-direction: column; text-align: center; gap: 12px; padding: 20px; border-radius: 12px; top: 8px; }
+    .budget-banner .total { font-size: 2.2rem; }
     .budget-banner .selected-list { max-width: 100%; justify-content: center; }
-    .card-grid { grid-template-columns: 1fr; }
+    .budget-chip { font-size: 0.72rem; padding: 4px 10px; }
+    .card-grid { grid-template-columns: 1fr 1fr; }
+    .card-grid.compact { grid-template-columns: 1fr 1fr; }
     .form-grid { grid-template-columns: 1fr; }
     .import-row { flex-direction: column; }
     .category-header { flex-direction: column; align-items: flex-start; gap: 8px; }
     .category-header-left { flex-wrap: wrap; }
+    .cat-actions { width: 100%; justify-content: flex-start; }
     .add-cat-row { flex-wrap: wrap; }
     .add-room-form { flex-direction: column; }
     .lookbook-grid { grid-template-columns: 1fr 1fr; }
+    .lookbook-modal { padding: 24px; }
+    .room-header { padding: 16px 20px; flex-wrap: wrap; gap: 8px; }
+    .room-body { padding: 0 20px 20px; }
+    .room-name { font-size: 1.25rem; }
+    .summary-table th, .summary-table td { padding: 10px 12px; font-size: 0.85rem; }
+  }
+
+  /* iPhone / small mobile */
+  @media (max-width: 480px) {
+    .app { padding: 12px; }
+    .header h1 { font-size: 1.4rem; }
+    .header p { font-size: 0.82rem; }
+    .header .context { font-size: 0.75rem; padding: 3px 10px; }
+    .budget-banner { padding: 16px; border-radius: 10px; top: 6px; margin-bottom: 20px; }
+    .budget-banner .label { font-size: 0.72rem; letter-spacing: 1.5px; }
+    .budget-banner .total { font-size: 1.8rem; }
+    .budget-banner .count { font-size: 0.82rem; }
+    .budget-banner .selected-list { gap: 4px; }
+    .budget-chip { font-size: 0.68rem; padding: 3px 8px; }
+    .room { margin-bottom: 24px; border-radius: 12px; }
+    .room-header { padding: 14px 16px; gap: 6px; }
+    .room-header-left { gap: 8px; }
+    .room-name { font-size: 1.1rem; max-width: 140px; }
+    .room-summary { font-size: 0.75rem; margin-left: 4px; }
+    .room-actions { gap: 4px; }
+    .lookbook-btn { font-size: 0.7rem; padding: 4px 8px; }
+    .room-delete-btn { font-size: 0.7rem; padding: 4px 8px; }
+    .move-btn { width: 24px; height: 24px; font-size: 0.75rem; }
+    .room-body { padding: 0 14px 16px; }
+    .card-grid { grid-template-columns: 1fr; gap: 10px; }
+    .card-grid.compact { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .card-grid.list .card-img,
+    .card-grid.list .card-img-placeholder { width: 50px; height: 50px; min-width: 50px; }
+    .card-grid.list .card-body { gap: 6px; padding: 6px 10px; }
+    .card-grid.list .card-edit-input.name { font-size: 0.82rem; min-width: 80px; }
+    .card-grid.list .card-edit-input.price { width: 60px; font-size: 0.85rem; }
+    .card-img { height: 140px; }
+    .card-body { padding: 12px 14px 14px; }
+    .category-header { gap: 6px; }
+    .cat-name-input { font-size: 1rem; max-width: 150px; }
+    .cat-search-input { font-size: 0.75rem; min-width: 60px; }
+    .cat-actions { gap: 4px; }
+    .action-btn { font-size: 0.72rem; padding: 5px 8px; }
+    .add-form, .import-form { padding: 14px; }
+    .form-group label { font-size: 0.72rem; }
+    .form-group input, .form-group select { padding: 8px 10px; font-size: 0.88rem; }
+    .form-actions button { padding: 8px 16px; font-size: 0.85rem; }
+    .add-cat-row input { font-size: 0.8rem; padding: 5px 8px; }
+    .add-cat-row .cat-name-field { width: 120px; }
+    .add-room-btn { padding: 14px 20px; font-size: 0.9rem; border-radius: 12px; }
+    .lookbook-overlay { padding: 12px; }
+    .lookbook-modal { padding: 20px; border-radius: 14px; }
+    .lookbook-title { font-size: 1.3rem; }
+    .lookbook-grid { grid-template-columns: 1fr; gap: 12px; }
+    .summary-section h2 { font-size: 1.1rem; }
+    .summary-table { font-size: 0.8rem; }
+    .summary-table th, .summary-table td { padding: 8px 10px; }
+    .summary-table .total-row td { font-size: 1rem; }
+    .summary-thumb { width: 36px; height: 36px; }
+    .view-toggle button { padding: 5px 8px; font-size: 0.72rem; }
   }
 </style>
 </head>
@@ -364,7 +476,7 @@ function Card({ item, selected, onToggle, onDelete, onBlurbLoaded, onUpdateQty, 
         <button className="delete-btn" title="Remove" onClick={e => { e.stopPropagation(); if (confirm('Remove this product?')) onDelete(); }}>&times;</button>
       </div>
       <div className="card-check"><CheckIcon /></div>
-      {item.image ? <img className="card-img" src={item.image} alt={item.name} onError={e => { e.target.style.display='none'; }} /> : <div className="card-img-placeholder">&#128444;</div>}
+      {item.image ? <img className="card-img" src={item.image} alt={item.name} onError={e => { e.target.onerror=null; e.target.replaceWith(Object.assign(document.createElement('div'), { className:'card-img-placeholder', innerHTML:'&#128444;' })); }} /> : <div className="card-img-placeholder">&#128444;</div>}
       <div className="card-body">
         <input className="card-edit-input name" value={item.name} onClick={e => e.stopPropagation()} onChange={e => onEdit({ name: e.target.value })} placeholder="Product name" />
         <input className="card-edit-input dim" value={item.dim || ''} onClick={e => e.stopPropagation()} onChange={e => onEdit({ dim: e.target.value })} placeholder="Dimensions" />
@@ -462,6 +574,7 @@ function App() {
   const [collapsedRooms, setCollapsedRooms] = useState({});
   const [collapsedCats, setCollapsedCats] = useState({});
   const [lookbookRoom, setLookbookRoom] = useState(null);
+  const [viewMode, setViewMode] = useState('grid'); // grid, compact, list
 
   useEffect(() => {
     fetch(API_BASE + '/api/data')
@@ -645,6 +758,14 @@ function App() {
         </div>
       </div>
 
+      <div style={{display:'flex', justifyContent:'flex-end', marginBottom: 16}}>
+        <div className="view-toggle">
+          <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>&#9638; Grid</button>
+          <button className={viewMode === 'compact' ? 'active' : ''} onClick={() => setViewMode('compact')}>&#9642; Compact</button>
+          <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>&#9776; List</button>
+        </div>
+      </div>
+
       {rooms.map((room, ri) => {
         const isCollapsed = collapsedRooms[room.id];
         const roomSelCount = room.categories.filter(c => selected[c.name]).length;
@@ -699,7 +820,7 @@ function App() {
                       {importingTo === catKey && <ImportForm category={cat.name} onImport={p => importProduct(cat.name, p)} onCancel={() => setImportingTo(null)} />}
                       {addingTo === catKey && <AddForm category={cat.name} onSave={p => addProduct(cat.name, p)} onCancel={() => setAddingTo(null)} />}
                       {cat.products.length > 0 ? (
-                        <div className="card-grid">
+                        <div className={`card-grid ${viewMode}`}>
                           {cat.products.map((item, ci2) => (
                             <Card key={item.id} item={item} selected={selected[cat.name] === item.id}
                               isFirst={ci2 === 0} isLast={ci2 === cat.products.length - 1}

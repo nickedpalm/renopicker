@@ -37,18 +37,29 @@ export default {
 
 async function verifyImage(imageUrl) {
   if (!imageUrl) return null;
+  // Clean up common URL issues
+  let clean = imageUrl.replace(/[",;]+$/, '').trim();
+  if (!/^https?:\/\//i.test(clean)) return null;
+
   try {
-    const resp = await fetch(imageUrl, {
-      method: 'HEAD',
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+    // Use GET with Range header — many CDNs block HEAD requests
+    const resp = await fetch(clean, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Range': 'bytes=0-1023',
+        'Accept': 'image/*,*/*;q=0.8',
+      },
       redirect: 'follow',
     });
-    if (resp.ok) {
-      const ct = resp.headers.get('content-type') || '';
-      // Accept if content-type is image or if URL looks like an image
-      if (ct.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|avif)/i.test(imageUrl)) return imageUrl;
-      // Some CDNs serve images with generic content types
-      if (resp.headers.get('content-length') > 5000 && !ct.startsWith('text/')) return imageUrl;
+    if (resp.ok || resp.status === 206) {
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      // Accept if content-type is image
+      if (ct.startsWith('image/')) return clean;
+      // Accept if URL looks like an image regardless of content-type
+      if (/\.(jpg|jpeg|png|webp|gif|avif|bmp)(\?|$)/i.test(clean)) return clean;
+      // Accept binary responses from known CDNs
+      if (!ct.startsWith('text/') && !ct.includes('html') && !ct.includes('json')) return clean;
     }
     return null;
   } catch { return null; }
@@ -92,10 +103,23 @@ async function extractOgImage(url) {
     const html = await resp.text();
     const baseUrl = new URL(url);
 
-    // Try og:image
-    const ogImg = html.match(/property="og:image"\s+content="([^"]+)"/i) || html.match(/content="([^"]+)"\s+property="og:image"/i);
-    if (ogImg?.[1]) {
-      try { return new URL(ogImg[1], baseUrl).href; } catch {}
+    // Try og:image — handle various HTML attribute orderings and quote styles
+    const ogPatterns = [
+      /property=["']og:image["']\s+content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["']\s+property=["']og:image["']/i,
+      /name=["']og:image["']\s+content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["']\s+name=["']og:image["']/i,
+      /<meta[^>]+og:image[^>]+content=["']([^"']+)["']/i,
+    ];
+    for (const pat of ogPatterns) {
+      const m = html.match(pat);
+      if (m?.[1]) {
+        try {
+          const imgUrl = new URL(m[1], baseUrl).href;
+          const verified = await verifyImage(imgUrl);
+          if (verified) return verified;
+        } catch {}
+      }
     }
 
     // Try JSON-LD
@@ -114,9 +138,37 @@ async function extractOgImage(url) {
     }
 
     // Try twitter:image
-    const twImg = html.match(/name="twitter:image"\s+content="([^"]+)"/i) || html.match(/content="([^"]+)"\s+name="twitter:image"/i);
-    if (twImg?.[1]) {
-      try { return new URL(twImg[1], baseUrl).href; } catch {}
+    const twPatterns = [
+      /name=["']twitter:image["']\s+content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["']\s+name=["']twitter:image["']/i,
+      /<meta[^>]+twitter:image[^>]+content=["']([^"']+)["']/i,
+    ];
+    for (const pat of twPatterns) {
+      const m = html.match(pat);
+      if (m?.[1]) {
+        try {
+          const imgUrl = new URL(m[1], baseUrl).href;
+          const verified = await verifyImage(imgUrl);
+          if (verified) return verified;
+        } catch {}
+      }
+    }
+
+    // Last resort: find large product images in common patterns
+    const imgMatches = html.match(/<img[^>]+src=["']([^"']+)["'][^>]*/gi) || [];
+    for (const tag of imgMatches.slice(0, 10)) {
+      const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+      if (!srcMatch?.[1]) continue;
+      const src = srcMatch[1];
+      // Only consider images from known CDNs or with product-like paths
+      if (/images\.thdstatic|m\.media-amazon|pisces\.bbystatic|mobileimages\.lowes|assets\.ajmadison/i.test(src) ||
+          (/\.(jpg|jpeg|png|webp)/i.test(src) && /product|hero|main|primary|large/i.test(tag))) {
+        try {
+          const imgUrl = new URL(src, baseUrl).href;
+          const verified = await verifyImage(imgUrl);
+          if (verified) return verified;
+        } catch {}
+      }
     }
 
     return null;
