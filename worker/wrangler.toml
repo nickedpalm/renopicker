@@ -1,0 +1,4 @@
+name = "appliance-parser"
+main = "index.js"
+compatibility_date = "2024-12-01"
+account_id = "b6bb6e004af5365ed33acf808713aae3"
