@@ -19,14 +19,69 @@ export default {
       const url = body.url;
       if (!url) return Response.json({ error: 'url required' }, { status: 400, headers: cors });
 
-      // Use Perplexity to extract all product data from the URL
+      // Use Perplexity to extract product data, then try to get a working image
       const data = await extractProductFromUrl(PPLX_KEY, url);
+
+      // Try to verify the Perplexity image works, fall back to og:image from direct fetch
+      let image = data.image;
+      if (image) {
+        try {
+          const imgResp = await fetch(image, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'follow' });
+          if (!imgResp.ok) image = null;
+        } catch { image = null; }
+      }
+      if (!image) {
+        image = await extractOgImage(url);
+      }
+      data.image = image;
+
       return Response.json({ success: true, data: { ...data, url } }, { headers: cors });
     } catch (err) {
       return Response.json({ error: err.message }, { status: 500, headers: cors });
     }
   }
 };
+
+async function extractOgImage(url) {
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+      redirect: 'follow',
+    });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    const baseUrl = new URL(url);
+
+    // Try og:image
+    const ogImg = html.match(/property="og:image"\s+content="([^"]+)"/i) || html.match(/content="([^"]+)"\s+property="og:image"/i);
+    if (ogImg?.[1]) {
+      try { return new URL(ogImg[1], baseUrl).href; } catch {}
+    }
+
+    // Try JSON-LD
+    const ldMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
+    if (ldMatch) {
+      for (const block of ldMatch) {
+        try {
+          const j = JSON.parse(block.replace(/<\/?script[^>]*>/gi, ''));
+          const img = j.image || j?.offers?.image;
+          if (img) {
+            const imgUrl = Array.isArray(img) ? img[0] : (typeof img === 'object' ? img.url : img);
+            if (imgUrl) { try { return new URL(imgUrl, baseUrl).href; } catch {} }
+          }
+        } catch {}
+      }
+    }
+
+    // Try twitter:image
+    const twImg = html.match(/name="twitter:image"\s+content="([^"]+)"/i) || html.match(/content="([^"]+)"\s+name="twitter:image"/i);
+    if (twImg?.[1]) {
+      try { return new URL(twImg[1], baseUrl).href; } catch {}
+    }
+
+    return null;
+  } catch { return null; }
+}
 
 async function extractProductFromUrl(apiKey, url) {
   const sysMsg = `You are a product data extractor. Given a product URL, find and return structured JSON about the product. You MUST respond with ONLY valid JSON, no other text.
