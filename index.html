@@ -144,22 +144,12 @@
 const { useState, useMemo, useCallback } = React;
 
 const WORKER_URL = 'https://appliance-parser.nick-ed-palm.workers.dev';
+const API_BASE = window.location.origin;
 
-const INITIAL_DATA = {
-  Refrigerator: [
-    { id: 'r1', name: 'GE 20.8 Cu.Ft. French-Door', dim: '29.75"W x 69.875"H x 36.625"D', notes: 'Ice, no water', price: 1979, url: 'https://www.geappliances.com/appliance/GE-ENERGY-STAR-20-8-Cu-Ft-French-Door-Refrigerator-GNE21FYKFS', image: 'https://cdn11.bigcommerce.com/s-pacto3wrn2/products/273116/images/784403/32ca23b62accb480d40e69ed9e4b58c90edf104d__16707.1756959879.386.513.jpg?c=2', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-    { id: 'r2', name: 'Blomberg 30" Counter-Depth French Door', dim: '29.75"W x 69.68"H x 27.56"D', notes: 'Ice, no water. Free dishwasher w/ fridge+oven', price: 2199, url: 'https://www.klearview.com/products/Blomberg-Appliances/blomb/brfd21622ss.html', image: 'https://images.webfronts.com/cache/frxlfudpbygc.png?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-    { id: 'r3', name: 'Blomberg 30" Panel Ready Bottom Freezer', dim: '29.75"W x 83.5"H x 23.56"D', notes: 'Ice +$250. Free dishwasher w/ fridge+oven', price: 5999, url: 'https://www.klearview.com/products/Blomberg-Appliances/blomb/brfb1900fbi.html', image: 'https://images.webfronts.com/cache/frgdxjfvngnl.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-    { id: 'r4', name: 'GE 21.0 Cu.Ft. Bottom-Freezer', dim: '29.75"W x 69.875"H x 36.625"D', notes: '', price: 1979, url: 'https://www.klearview.com/products/GE-Appliances/ge/gde21eykfs.html', image: 'https://images.webfronts.com/cache/frgeofuyyyib.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-  ],
-  Dishwasher: [
-    { id: 'd1', name: 'Bosch 800 Series 24" Fully-Integrated', dim: '23.56"W x 33.875"H x 23.06"D', notes: 'Panel ready. Energy Saver +$150', price: 1449, url: 'https://www.klearview.com/products/bosch/shv78dm3n.html', image: 'https://images.webfronts.com/cache/froibdjmtynb.png?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-    { id: 'd2', name: 'GE Profile Panel-Ready Top Control', dim: '23.75"W x 34"H x 24"D', notes: 'Panel ready. Call for price', price: 0, url: 'https://www.klearview.com/products/GE-Appliances/ge/pdt715siyii.html', image: 'https://images.webfronts.com/cache/frhrigwdjgtz.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-  ],
-  Stove: [
-    { id: 's1', name: 'GE 30" Slide-In Gas Double Oven', dim: '30"W x 36.25"H x 29.25"D', notes: 'Electric oven? Rebate available', price: 2298, url: 'https://www.klearview.com/products/GE-Appliances/ge/jgss86spss.html', image: 'https://images.webfronts.com/cache/frdnqqovfmzt.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-    { id: 's2', name: 'GE Profile 30" Smart Air Fry Convection', dim: '30"W x 36.5"H x 29.5"D', notes: 'Electric oven? Rebate available', price: 2998, url: 'https://www.pcrichard.com/ge-profile-30-in-6.7-cu-ft-smart-air-fry-true-european-convection-double-oven-slide-in-gas-range-with-5-sealed-burners-grill-and-griddle-stainless-steel/PGS960YPFS.html', image: 'https://images.webfronts.com/cache/frhndxbojilv.jpg', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
-  ],
+const FALLBACK_DATA = {
+  Refrigerator: [],
+  Dishwasher: [],
+  Stove: [],
   Microwave: [],
   Sink: [],
 };
@@ -316,21 +306,70 @@ function Card({ item, selected, onToggle, onDelete, onBlurbLoaded }) {
 }
 
 function App() {
-  const [data, setData] = useState(INITIAL_DATA);
+  const [data, setData] = useState(FALLBACK_DATA);
   const [selected, setSelected] = useState({});
   const [addingTo, setAddingTo] = useState(null);
   const [importingTo, setImportingTo] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const toggle = (cat, id) => setSelected(prev => prev[cat] === id ? { ...prev, [cat]: undefined } : { ...prev, [cat]: id });
-  const addProduct = (cat, p) => { setData(prev => ({ ...prev, [cat]: [...prev[cat], p] })); setAddingTo(null); };
-  const importProduct = (cat, p) => { setData(prev => ({ ...prev, [cat]: [...prev[cat], p] })); setImportingTo(null); };
-  const deleteProduct = (cat, id) => { setData(prev => ({ ...prev, [cat]: prev[cat].filter(i => i.id !== id) })); if (selected[cat] === id) setSelected(prev => ({ ...prev, [cat]: undefined })); };
+  // Load data from API on mount
+  React.useEffect(() => {
+    fetch(API_BASE + '/api/data')
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.data && Object.keys(resp.data).length > 0) {
+          setData(resp.data);
+        }
+        if (resp.selected) setSelected(resp.selected);
+      })
+      .catch(err => console.error('Failed to load data:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (cat, id) => {
+    setSelected(prev => {
+      const next = prev[cat] === id ? { ...prev, [cat]: undefined } : { ...prev, [cat]: id };
+      fetch(API_BASE + '/api/selections', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [cat]: next[cat] || null }),
+      }).catch(() => {});
+      return next;
+    });
+  };
+
+  const addProduct = (cat, p) => {
+    setData(prev => ({ ...prev, [cat]: [...prev[cat], p] }));
+    setAddingTo(null);
+    fetch(API_BASE + '/api/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...p, category: cat }),
+    }).catch(() => {});
+  };
+
+  const importProduct = (cat, p) => {
+    setData(prev => ({ ...prev, [cat]: [...prev[cat], p] }));
+    setImportingTo(null);
+    fetch(API_BASE + '/api/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...p, category: cat }),
+    }).catch(() => {});
+  };
+
+  const deleteProduct = (cat, id) => {
+    setData(prev => ({ ...prev, [cat]: prev[cat].filter(i => i.id !== id) }));
+    if (selected[cat] === id) setSelected(prev => ({ ...prev, [cat]: undefined }));
+    fetch(API_BASE + '/api/products/' + id, { method: 'DELETE' }).catch(() => {});
+  };
 
   const updateBlurb = useCallback((cat, id, reviewData) => {
     setData(prev => ({
       ...prev,
       [cat]: prev[cat].map(item => item.id === id ? { ...item, ...reviewData } : item)
     }));
+    fetch(API_BASE + '/api/products/' + id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reviewData),
+    }).catch(() => {});
   }, []);
 
   const selectedItems = useMemo(() => {
@@ -341,6 +380,15 @@ function App() {
 
   const total = selectedItems.reduce((s, i) => s + i.price, 0);
   const count = selectedItems.length;
+
+  if (loading) {
+    return (
+      <div className="app" style={{textAlign: 'center', paddingTop: '100px'}}>
+        <span className="spinner" style={{width: 32, height: 32, borderWidth: 3}} />
+        <p style={{marginTop: 16, color: '#6b7280'}}>Loading appliances...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
