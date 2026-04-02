@@ -331,7 +331,7 @@ function parseBlurb(text, citations) {
   return html;
 }
 
-function Card({ item, selected, onToggle, onDelete, onBlurbLoaded, onUpdateQty }) {
+function Card({ item, selected, onToggle, onDelete, onBlurbLoaded, onUpdateQty, onMoveUp, onMoveDown, isFirst, isLast }) {
   const [blurbLoading, setBlurbLoading] = useState(false);
   const fetchBlurb = async (e) => {
     e.stopPropagation();
@@ -352,6 +352,8 @@ function Card({ item, selected, onToggle, onDelete, onBlurbLoaded, onUpdateQty }
   return (
     <div className={`card${selected ? ' selected' : ''}`} onClick={onToggle}>
       <div className="card-actions-bar">
+        <button className="delete-btn" title="Move up" disabled={isFirst} onClick={e => { e.stopPropagation(); onMoveUp(); }} style={isFirst ? {opacity:0.3} : {}}>&#9650;</button>
+        <button className="delete-btn" title="Move down" disabled={isLast} onClick={e => { e.stopPropagation(); onMoveDown(); }} style={isLast ? {opacity:0.3} : {}}>&#9660;</button>
         <button className="delete-btn" title="Remove" onClick={e => { e.stopPropagation(); if (confirm('Remove this product?')) onDelete(); }}>&times;</button>
       </div>
       <div className="card-check"><CheckIcon /></div>
@@ -507,6 +509,24 @@ function App() {
     saveProductQty(productId, data);
   }, [saveProductQty]);
 
+  const moveProduct = (catName, productId, dir) => {
+    setRooms(prev => prev.map(r => ({
+      ...r, categories: r.categories.map(c => {
+        if (c.name !== catName) return c;
+        const prods = [...c.products];
+        const idx = prods.findIndex(p => p.id === productId);
+        const newIdx = idx + dir;
+        if (newIdx < 0 || newIdx >= prods.length) return c;
+        [prods[idx], prods[newIdx]] = [prods[newIdx], prods[idx]];
+        fetch(API_BASE + '/api/products/reorder', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: prods.map(p => p.id) }),
+        }).catch(() => {});
+        return { ...c, products: prods };
+      })
+    })));
+  };
+
   const addRoom = (name) => {
     if (!name) return;
     const tempId = 'room-' + Date.now();
@@ -661,12 +681,15 @@ function App() {
                       {addingTo === catKey && <AddForm category={cat.name} onSave={p => addProduct(cat.name, p)} onCancel={() => setAddingTo(null)} />}
                       {cat.products.length > 0 ? (
                         <div className="card-grid">
-                          {cat.products.map(item => (
+                          {cat.products.map((item, ci2) => (
                             <Card key={item.id} item={item} selected={selected[cat.name] === item.id}
+                              isFirst={ci2 === 0} isLast={ci2 === cat.products.length - 1}
                               onToggle={() => toggle(cat.name, item.id)}
                               onDelete={() => deleteProduct(cat.name, item.id)}
                               onBlurbLoaded={(id, reviewData) => updateBlurb(cat.name, id, reviewData)}
-                              onUpdateQty={(id, data) => updateProductQty(cat.name, id, data)} />
+                              onUpdateQty={(id, data) => updateProductQty(cat.name, id, data)}
+                              onMoveUp={() => moveProduct(cat.name, item.id, -1)}
+                              onMoveDown={() => moveProduct(cat.name, item.id, 1)} />
                           ))}
                         </div>
                       ) : <div className="empty">No products yet</div>}

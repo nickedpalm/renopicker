@@ -44,7 +44,7 @@ async function handleAPI(request, env, path, cors) {
     const [rooms, categories, products, selections] = await Promise.all([
       db.prepare('SELECT * FROM rooms ORDER BY sort_order').all(),
       db.prepare('SELECT * FROM categories ORDER BY sort_order').all(),
-      db.prepare('SELECT * FROM products ORDER BY category, created_at').all(),
+      db.prepare('SELECT * FROM products ORDER BY category, sort_order, created_at').all(),
       db.prepare('SELECT * FROM selections').all(),
     ]);
 
@@ -135,6 +135,15 @@ async function handleAPI(request, env, path, cors) {
     const { room_id, order } = await request.json(); // order: array of category names
     const stmt = db.prepare('UPDATE categories SET sort_order = ? WHERE name = ? AND room_id = ?');
     const batch = order.map((name, i) => stmt.bind(i, name, room_id));
+    if (batch.length > 0) await db.batch(batch);
+    return json({ success: true });
+  }
+
+  // PUT /api/products/reorder — update sort_order for products within a category
+  if (path === '/api/products/reorder' && method === 'PUT') {
+    const { order } = await request.json(); // array of product ids
+    const stmt = db.prepare('UPDATE products SET sort_order = ? WHERE id = ?');
+    const batch = order.map((id, i) => stmt.bind(i, id));
     if (batch.length > 0) await db.batch(batch);
     return json({ success: true });
   }
