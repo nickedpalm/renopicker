@@ -62,15 +62,27 @@
   .card-dim { font-size: 0.85rem; color: #6b7280; margin-bottom: 6px; }
   .card-notes { font-size: 0.85rem; color: #9ca3af; margin-bottom: 8px; font-style: italic; min-height: 20px; }
 
-  .card-blurb { font-size: 0.84rem; color: #4b5563; margin-bottom: 12px; line-height: 1.5; background: #f0f7ff; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #3b82f6; }
-  .card-blurb.loading { color: #9ca3af; font-style: italic; background: #f9fafb; border-left-color: #d1d5db; }
+  .card-review { font-size: 0.84rem; color: #4b5563; margin-bottom: 12px; line-height: 1.5; background: #f0f7ff; padding: 12px 14px; border-radius: 8px; border-left: 3px solid #3b82f6; }
+  .card-review.loading { color: #9ca3af; font-style: italic; background: #f9fafb; border-left-color: #d1d5db; }
+  .review-blurb { margin-bottom: 10px; }
+  .review-blurb sup { font-size: 0.65em; color: #3b82f6; font-weight: 600; margin: 0 1px; }
+  .review-blurb a { color: #3b82f6; text-decoration: none; font-weight: 500; }
+  .review-blurb a:hover { text-decoration: underline; }
+  .review-rating { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .rating-bar { flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  .rating-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+  .rating-score { font-weight: 700; font-size: 0.95rem; min-width: 38px; }
+  .review-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .review-pros, .review-cons { font-size: 0.78rem; }
+  .review-pros .list-title { color: #059669; font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .review-cons .list-title { color: #dc2626; font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .review-pros li, .review-cons li { margin-left: 14px; margin-bottom: 2px; color: #4b5563; }
+  .review-pros li::marker { color: #10b981; }
+  .review-cons li::marker { color: #ef4444; }
+  .review-features { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .feature-tag { background: #dbeafe; color: #1e40af; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
   .blurb-btn { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; color: #6b7280; cursor: pointer; transition: all 0.15s; margin-bottom: 10px; }
   .blurb-btn:hover { border-color: #3b82f6; color: #3b82f6; }
-  .card-blurb sup { font-size: 0.65em; color: #3b82f6; font-weight: 600; margin: 0 1px; cursor: default; }
-  .card-blurb a { color: #3b82f6; text-decoration: none; font-weight: 500; }
-  .card-blurb a:hover { text-decoration: underline; }
-  .blurb-sources { margin-top: 6px; padding-top: 6px; border-top: 1px solid #dbeafe; font-size: 0.75rem; color: #6b7280; }
-  .blurb-sources a { color: #3b82f6; word-break: break-all; }
 
   .card-footer { display: flex; justify-content: space-between; align-items: center; }
   .card-price { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; }
@@ -135,18 +147,18 @@ const WORKER_URL = 'https://appliance-parser.nick-ed-palm.workers.dev';
 
 const INITIAL_DATA = {
   Refrigerator: [
-    { id: 'r1', name: 'GE 20.8 Cu.Ft. French-Door', dim: '29.75"W x 69.875"H x 36.625"D', notes: 'Ice, no water', price: 1979, url: 'https://www.geappliances.com/appliance/GE-ENERGY-STAR-20-8-Cu-Ft-French-Door-Refrigerator-GNE21FYKFS', image: 'https://cdn11.bigcommerce.com/s-pacto3wrn2/products/273116/images/784403/32ca23b62accb480d40e69ed9e4b58c90edf104d__16707.1756959879.386.513.jpg?c=2', blurb: '', citations: [] },
-    { id: 'r2', name: 'Blomberg 30" Counter-Depth French Door', dim: '29.75"W x 69.68"H x 27.56"D', notes: 'Ice, no water. Free dishwasher w/ fridge+oven', price: 2199, url: 'https://www.klearview.com/products/Blomberg-Appliances/blomb/brfd21622ss.html', image: 'https://images.webfronts.com/cache/frxlfudpbygc.png?imgeng=/w_300', blurb: '', citations: [] },
-    { id: 'r3', name: 'Blomberg 30" Panel Ready Bottom Freezer', dim: '29.75"W x 83.5"H x 23.56"D', notes: 'Ice +$250. Free dishwasher w/ fridge+oven', price: 5999, url: 'https://www.klearview.com/products/Blomberg-Appliances/blomb/brfb1900fbi.html', image: 'https://images.webfronts.com/cache/frgdxjfvngnl.jpg?imgeng=/w_300', blurb: '', citations: [] },
-    { id: 'r4', name: 'GE 21.0 Cu.Ft. Bottom-Freezer', dim: '29.75"W x 69.875"H x 36.625"D', notes: '', price: 1979, url: 'https://www.klearview.com/products/GE-Appliances/ge/gde21eykfs.html', image: 'https://images.webfronts.com/cache/frgeofuyyyib.jpg?imgeng=/w_300', blurb: '', citations: [] },
+    { id: 'r1', name: 'GE 20.8 Cu.Ft. French-Door', dim: '29.75"W x 69.875"H x 36.625"D', notes: 'Ice, no water', price: 1979, url: 'https://www.geappliances.com/appliance/GE-ENERGY-STAR-20-8-Cu-Ft-French-Door-Refrigerator-GNE21FYKFS', image: 'https://cdn11.bigcommerce.com/s-pacto3wrn2/products/273116/images/784403/32ca23b62accb480d40e69ed9e4b58c90edf104d__16707.1756959879.386.513.jpg?c=2', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
+    { id: 'r2', name: 'Blomberg 30" Counter-Depth French Door', dim: '29.75"W x 69.68"H x 27.56"D', notes: 'Ice, no water. Free dishwasher w/ fridge+oven', price: 2199, url: 'https://www.klearview.com/products/Blomberg-Appliances/blomb/brfd21622ss.html', image: 'https://images.webfronts.com/cache/frxlfudpbygc.png?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
+    { id: 'r3', name: 'Blomberg 30" Panel Ready Bottom Freezer', dim: '29.75"W x 83.5"H x 23.56"D', notes: 'Ice +$250. Free dishwasher w/ fridge+oven', price: 5999, url: 'https://www.klearview.com/products/Blomberg-Appliances/blomb/brfb1900fbi.html', image: 'https://images.webfronts.com/cache/frgdxjfvngnl.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
+    { id: 'r4', name: 'GE 21.0 Cu.Ft. Bottom-Freezer', dim: '29.75"W x 69.875"H x 36.625"D', notes: '', price: 1979, url: 'https://www.klearview.com/products/GE-Appliances/ge/gde21eykfs.html', image: 'https://images.webfronts.com/cache/frgeofuyyyib.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
   ],
   Dishwasher: [
-    { id: 'd1', name: 'Bosch 800 Series 24" Fully-Integrated', dim: '23.56"W x 33.875"H x 23.06"D', notes: 'Panel ready. Energy Saver +$150', price: 1449, url: 'https://www.klearview.com/products/bosch/shv78dm3n.html', image: 'https://images.webfronts.com/cache/froibdjmtynb.png?imgeng=/w_300', blurb: '', citations: [] },
-    { id: 'd2', name: 'GE Profile Panel-Ready Top Control', dim: '23.75"W x 34"H x 24"D', notes: 'Panel ready. Call for price', price: 0, url: 'https://www.klearview.com/products/GE-Appliances/ge/pdt715siyii.html', image: 'https://images.webfronts.com/cache/frhrigwdjgtz.jpg?imgeng=/w_300', blurb: '', citations: [] },
+    { id: 'd1', name: 'Bosch 800 Series 24" Fully-Integrated', dim: '23.56"W x 33.875"H x 23.06"D', notes: 'Panel ready. Energy Saver +$150', price: 1449, url: 'https://www.klearview.com/products/bosch/shv78dm3n.html', image: 'https://images.webfronts.com/cache/froibdjmtynb.png?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
+    { id: 'd2', name: 'GE Profile Panel-Ready Top Control', dim: '23.75"W x 34"H x 24"D', notes: 'Panel ready. Call for price', price: 0, url: 'https://www.klearview.com/products/GE-Appliances/ge/pdt715siyii.html', image: 'https://images.webfronts.com/cache/frhrigwdjgtz.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
   ],
   Stove: [
-    { id: 's1', name: 'GE 30" Slide-In Gas Double Oven', dim: '30"W x 36.25"H x 29.25"D', notes: 'Electric oven? Rebate available', price: 2298, url: 'https://www.klearview.com/products/GE-Appliances/ge/jgss86spss.html', image: 'https://images.webfronts.com/cache/frdnqqovfmzt.jpg?imgeng=/w_300', blurb: '', citations: [] },
-    { id: 's2', name: 'GE Profile 30" Smart Air Fry Convection', dim: '30"W x 36.5"H x 29.5"D', notes: 'Electric oven? Rebate available', price: 2998, url: 'https://www.pcrichard.com/ge-profile-30-in-6.7-cu-ft-smart-air-fry-true-european-convection-double-oven-slide-in-gas-range-with-5-sealed-burners-grill-and-griddle-stainless-steel/PGS960YPFS.html', image: 'https://images.webfronts.com/cache/frhndxbojilv.jpg', blurb: '', citations: [] },
+    { id: 's1', name: 'GE 30" Slide-In Gas Double Oven', dim: '30"W x 36.25"H x 29.25"D', notes: 'Electric oven? Rebate available', price: 2298, url: 'https://www.klearview.com/products/GE-Appliances/ge/jgss86spss.html', image: 'https://images.webfronts.com/cache/frdnqqovfmzt.jpg?imgeng=/w_300', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
+    { id: 's2', name: 'GE Profile 30" Smart Air Fry Convection', dim: '30"W x 36.5"H x 29.5"D', notes: 'Electric oven? Rebate available', price: 2998, url: 'https://www.pcrichard.com/ge-profile-30-in-6.7-cu-ft-smart-air-fry-true-european-convection-double-oven-slide-in-gas-range-with-5-sealed-burners-grill-and-griddle-stainless-steel/PGS960YPFS.html', image: 'https://images.webfronts.com/cache/frhndxbojilv.jpg', blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] },
   ],
   Microwave: [],
   Sink: [],
@@ -206,7 +218,7 @@ function AddForm({ category, onSave, onCancel }) {
         <div className="form-group full"><label>Image URL (optional)</label><input value={form.image} onChange={e => set('image', e.target.value)} placeholder="https://...image.jpg" /></div>
       </div>
       <div className="form-actions">
-        <button className="btn-save" onClick={() => { if (form.name) onSave({ ...form, price: Number(form.price) || 0, id: Date.now().toString(), image: form.image || null, blurb: '', citations: [] }); }}>Add Product</button>
+        <button className="btn-save" onClick={() => { if (form.name) onSave({ ...form, price: Number(form.price) || 0, id: Date.now().toString(), image: form.image || null, blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] }); }}>Add Product</button>
         <button className="btn-cancel" onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -224,7 +236,7 @@ function parseBlurb(text, citations) {
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
   // Inline links: [text](url)
   html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" onclick="event.stopPropagation()">$1</a>');
-  // Citation refs: [1], [2][3], etc -> linked superscripts if citations available
+  // Citation refs: [1], [2][3], etc → linked superscripts if citations available
   const cites = citations || [];
   html = html.replace(/\[(\d+)\]/g, (match, num) => {
     const idx = parseInt(num) - 1;
@@ -248,7 +260,7 @@ function Card({ item, selected, onToggle, onDelete, onBlurbLoaded }) {
         body: JSON.stringify({ action: 'blurb', name: item.name, price: item.price, dim: item.dim, notes: item.notes }),
       });
       const json = await resp.json();
-      if (json.success && json.blurb) onBlurbLoaded(item.id, json.blurb, json.citations || []);
+      if (json.success && json.blurb) onBlurbLoaded(item.id, { blurb: json.blurb, citations: json.citations || [], pros: json.pros || [], cons: json.cons || [], rating: json.rating || 0, features: json.features || [] });
     } catch {}
     setBlurbLoading(false);
   };
@@ -268,9 +280,26 @@ function Card({ item, selected, onToggle, onDelete, onBlurbLoaded }) {
         <div className="card-notes">{item.notes || '\u00A0'}</div>
 
         {item.blurb ? (
-          <div className="card-blurb" onClick={e => e.stopPropagation()} dangerouslySetInnerHTML={{ __html: blurbHtml }} />
+          <div className="card-review" onClick={e => e.stopPropagation()}>
+            <div className="review-blurb" dangerouslySetInnerHTML={{ __html: blurbHtml }} />
+            {item.rating > 0 && (
+              <div className="review-rating">
+                <span className="rating-score" style={{color: item.rating >= 7 ? '#059669' : item.rating >= 5 ? '#d97706' : '#dc2626'}}>{item.rating}/10</span>
+                <div className="rating-bar"><div className="rating-fill" style={{width: (item.rating * 10) + '%', background: item.rating >= 7 ? '#10b981' : item.rating >= 5 ? '#f59e0b' : '#ef4444'}} /></div>
+              </div>
+            )}
+            {(item.pros.length > 0 || item.cons.length > 0) && (
+              <div className="review-lists">
+                {item.pros.length > 0 && <div className="review-pros"><div className="list-title">Pros</div><ul>{item.pros.map((p, i) => <li key={i}>{p}</li>)}</ul></div>}
+                {item.cons.length > 0 && <div className="review-cons"><div className="list-title">Cons</div><ul>{item.cons.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
+              </div>
+            )}
+            {item.features.length > 0 && (
+              <div className="review-features">{item.features.map((f, i) => <span key={i} className="feature-tag">{f}</span>)}</div>
+            )}
+          </div>
         ) : blurbLoading ? (
-          <div className="card-blurb loading"><span className="spinner" /> Getting the scoop from Perplexity...</div>
+          <div className="card-review loading"><span className="spinner" /> Getting the scoop from Perplexity...</div>
         ) : (
           <button className="blurb-btn" onClick={fetchBlurb}>Get AI review for Clinton Hill reno</button>
         )}
@@ -297,10 +326,10 @@ function App() {
   const importProduct = (cat, p) => { setData(prev => ({ ...prev, [cat]: [...prev[cat], p] })); setImportingTo(null); };
   const deleteProduct = (cat, id) => { setData(prev => ({ ...prev, [cat]: prev[cat].filter(i => i.id !== id) })); if (selected[cat] === id) setSelected(prev => ({ ...prev, [cat]: undefined })); };
 
-  const updateBlurb = useCallback((cat, id, blurb, citations) => {
+  const updateBlurb = useCallback((cat, id, reviewData) => {
     setData(prev => ({
       ...prev,
-      [cat]: prev[cat].map(item => item.id === id ? { ...item, blurb, citations: citations || [] } : item)
+      [cat]: prev[cat].map(item => item.id === id ? { ...item, ...reviewData } : item)
     }));
   }, []);
 
@@ -354,7 +383,7 @@ function App() {
                 <Card key={item.id} item={item} selected={selected[category] === item.id}
                   onToggle={() => toggle(category, item.id)}
                   onDelete={() => deleteProduct(category, item.id)}
-                  onBlurbLoaded={(id, blurb, citations) => updateBlurb(category, id, blurb, citations)} />
+                  onBlurbLoaded={(id, reviewData) => updateBlurb(category, id, reviewData)} />
               ))}
             </div>
           ) : <div className="empty">No options yet. Import from a URL or add manually.</div>}
