@@ -447,8 +447,9 @@ function validateProductData(data, { url, expectedCategory, evidence, page }) {
   if (extractorConfidence !== null && extractorConfidence < 0.55) add(errors, 'low_extractor_confidence', 'Extractor reported low confidence.', 0.3, 'error');
   for (const warning of data.extractorWarnings || []) warnings.push({ code: 'extractor_warning', message: String(warning), severity: 'warning' });
 
+  const actionableWarnings = warnings.filter(w => w.code !== 'extractor_warning');
   const confidence = Math.max(0, Math.min(1, Number(score.toFixed(2))));
-  return { errors, warnings, confidence, needsReview: errors.length > 0 || warnings.length > 0 || confidence < 0.85 };
+  return { errors, warnings, confidence, needsReview: errors.length > 0 || actionableWarnings.length > 0 || confidence < 0.85 };
 }
 
 function host(value) {
