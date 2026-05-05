@@ -14,6 +14,12 @@ CREATE TABLE IF NOT EXISTS products (
   cons TEXT DEFAULT '[]',
   rating REAL DEFAULT 0,
   features TEXT DEFAULT '[]',
+  needs_review INTEGER DEFAULT 0,
+  source_confidence REAL,
+  source_metadata TEXT,
+  validation_errors TEXT,
+  validation_warnings TEXT,
+  source_url TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

@@ -473,6 +473,28 @@
   .budget-diff { font-size: 0.82rem; opacity: 0.6; margin-top: 2px; }
   .budget-diff.savings { color: #86efac; opacity: 1; }
 
+  /* Import quality */
+  .quality-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+  .quality-pill.review { background: #fef3c7; color: #92400e; }
+  .quality-pill.good { background: #dcfce7; color: #166534; }
+  .quality-panel { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; margin: 10px 0; background: #f9fafb; font-size: 0.8rem; color: #4b5563; }
+  .quality-panel.error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+  .quality-panel.warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+  .quality-list { margin: 6px 0 0; padding-left: 18px; }
+  .review-draft { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; margin-top: 12px; background: white; }
+  .review-draft-grid { display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: start; }
+  .review-draft-img { width: 120px; height: 120px; object-fit: contain; background: #f9fafb; border-radius: 10px; border: 1px solid #f0f0f0; }
+  .review-draft-placeholder { width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; background: #f9fafb; color: #cbd5e1; border-radius: 10px; border: 1px solid #f0f0f0; font-size: 1.8rem; }
+  .review-draft-fields { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
+  .review-draft-fields .full { grid-column: 1 / -1; }
+  .review-draft-fields input, .review-draft-fields textarea { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; font-family: inherit; font-size: 0.84rem; }
+  .review-draft-fields textarea { min-height: 72px; resize: vertical; }
+  .audit-bar { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 14px; margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 10px; background: white; font-size: 0.84rem; color: #4b5563; }
+  .audit-items { display: flex; gap: 8px; flex-wrap: wrap; }
+  .audit-chip { padding: 4px 9px; border-radius: 999px; background: #f3f4f6; color: #4b5563; font-weight: 600; }
+  .audit-chip.warn { background: #fef3c7; color: #92400e; }
+  .audit-chip.bad { background: #fee2e2; color: #991b1b; }
+
   /* Loading skeleton */
   .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -504,6 +526,47 @@ const UNITS = ['each', 'sq ft', 'linear ft', 'box', 'case', 'gallon', 'roll'];
 
 function itemTotal(item) {
   return (item.price || 0) * (item.qty || 1);
+}
+
+function normalizeImportProduct(product, categoryName) {
+  const errors = product.validationErrors || product.validation_errors || [];
+  const warnings = product.validationWarnings || product.validation_warnings || [];
+  const metadata = product.sourceMetadata || product.source_metadata || {};
+  return {
+    ...product,
+    source_confidence: product.sourceConfidence ?? product.source_confidence ?? null,
+    source_metadata: metadata,
+    validation_errors: errors,
+    validation_warnings: warnings,
+    needs_review: Boolean(product.needsReview ?? product.needs_review ?? warnings.length > 0),
+    source_url: product.source_url || product.url || metadata.sourceUrl || '',
+    category: product.category || categoryName,
+  };
+}
+
+function qualityIssues(item) {
+  const issues = [];
+  if (!item.name || item.name === 'Unknown Product') issues.push('Missing product name');
+  if ((!item.price || item.price <= 0) && !/call\s*for\s*price|price unavailable|contact/i.test(item.notes || '')) issues.push('Missing price');
+  if (!item.dim) issues.push('Missing dimensions');
+  if (!item.image) issues.push('Missing image');
+  if (!item.blurb || !(item.pros || []).length || !(item.cons || []).length || !(item.features || []).length || !item.rating) issues.push('Incomplete review');
+  for (const e of item.validation_errors || []) issues.push(e.message || e.code);
+  return Array.from(new Set(issues));
+}
+
+function qualityWarnings(item) {
+  return Array.from(new Set((item.validation_warnings || []).map(w => w.message || w.code).filter(Boolean)));
+}
+
+function blockingImportIssues(item) {
+  const issues = [];
+  if (!item.name || item.name === 'Unknown Product') issues.push('Missing product name');
+  if ((!item.price || item.price <= 0) && !/call\s*for\s*price|price unavailable|contact/i.test(item.notes || '')) issues.push('Missing price');
+  if (!item.dim) issues.push('Missing dimensions');
+  if (!item.blurb || !(item.pros || []).length || !(item.cons || []).length || !(item.features || []).length || !item.rating) issues.push('Incomplete review');
+  for (const e of item.validation_errors || []) issues.push(e.message || e.code);
+  return Array.from(new Set(issues));
 }
 
 const CheckIcon = () => (
@@ -572,17 +635,31 @@ function useDebounce(fn, delay) {
 function ImportForm({ category, onImport, onCancel }) {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState(null);
+  const [draft, setDraft] = useState(null);
   const doImport = async () => {
     if (!url) return;
     setStatus({ type: 'loading', msg: 'Fetching product details + writing blurb...' });
+    setDraft(null);
     try {
-      const resp = await fetch(WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      const resp = await fetch(WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, category }) });
       const json = await resp.json();
-      if (json.success) {
+      if (json.data) {
+        const product = normalizeImportProduct(json.data, category);
+        setDraft({ ...product, id: Date.now().toString(), qty: 1, unit: 'each' });
+        setStatus({ type: json.success ? 'success' : 'error', msg: json.success ? 'Review extracted product before saving.' : (json.error || 'Import needs review before saving.') });
+      } else if (json.success) {
         setStatus({ type: 'success', msg: `Imported: ${json.data.name}` });
-        setTimeout(() => onImport({ ...json.data, id: Date.now().toString(), qty: 1, unit: 'each' }), 600);
-      } else { setStatus({ type: 'error', msg: json.error || 'Failed to parse' }); }
+      } else {
+        setStatus({ type: 'error', msg: json.error || 'Failed to parse' });
+      }
     } catch (e) { setStatus({ type: 'error', msg: 'Network error: ' + e.message }); }
+  };
+  const setDraftField = (key, value) => setDraft(prev => normalizeImportProduct({ ...prev, [key]: value }, category));
+  const blockers = draft ? blockingImportIssues(draft) : [];
+  const warnings = draft ? qualityWarnings(draft) : [];
+  const approveDraft = () => {
+    if (!draft || blockers.length > 0) return;
+    onImport({ ...draft, needs_review: Boolean(draft.needs_review || warnings.length > 0), category });
   };
   return (
     <div className="import-form">
@@ -598,6 +675,34 @@ function ImportForm({ category, onImport, onCancel }) {
         </div>
       </div>
       {status && <div className={`import-status ${status.type}`}>{status.type === 'loading' && <span className="spinner" />}{status.msg}</div>}
+      {draft && (
+        <div className="review-draft">
+          <div className="review-draft-grid">
+            {draft.image ? <img className="review-draft-img" src={draft.image} alt="" /> : <div className="review-draft-placeholder">&#128444;</div>}
+            <div>
+              <div style={{fontWeight:700, marginBottom:8}}>Review before saving</div>
+              <div style={{fontSize:'0.8rem', color:'#6b7280', marginBottom:10}}>
+                Confidence: {draft.source_confidence == null ? 'unknown' : Math.round(draft.source_confidence * 100) + '%'}
+                {draft.needs_review && <span className="quality-pill review">Needs review</span>}
+              </div>
+              {blockers.length > 0 && <div className="quality-panel error"><strong>Fix before saving</strong><ul className="quality-list">{blockers.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
+              {warnings.length > 0 && <div className="quality-panel warning"><strong>Warnings</strong><ul className="quality-list">{warnings.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
+              <div className="review-draft-fields">
+                <div className="full"><input value={draft.name || ''} onChange={e => setDraftField('name', e.target.value)} placeholder="Product name" /></div>
+                <input value={draft.dim || ''} onChange={e => setDraftField('dim', e.target.value)} placeholder="Dimensions" />
+                <input type="number" value={draft.price || ''} onChange={e => setDraftField('price', Number(e.target.value) || 0)} placeholder="Price" />
+                <div className="full"><input value={draft.image || ''} onChange={e => setDraftField('image', e.target.value)} placeholder="Verified image URL" /></div>
+                <div className="full"><textarea value={draft.notes || ''} onChange={e => setDraftField('notes', e.target.value)} placeholder="Notes" /></div>
+                <div className="full"><textarea value={draft.blurb || ''} onChange={e => setDraftField('blurb', e.target.value)} placeholder="Review blurb" /></div>
+              </div>
+              <div className="form-actions" style={{marginTop:12}}>
+                <button className="btn-save" onClick={approveDraft} disabled={blockers.length > 0}>Save reviewed product</button>
+                <button className="btn-cancel" onClick={() => setDraft(null)}>Discard draft</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -624,7 +729,7 @@ function AddForm({ category, onSave, onCancel }) {
         <div className="form-group full"><label>Image URL (optional)</label><input value={form.image} onChange={e => set('image', e.target.value)} placeholder="https://...image.jpg" /></div>
       </div>
       <div className="form-actions">
-        <button className="btn-save" onClick={() => { if (form.name) onSave({ ...form, price: Number(form.price) || 0, qty: Number(form.qty) || 1, id: Date.now().toString(), image: form.image || null, blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [] }); }}>Add Product</button>
+        <button className="btn-save" onClick={() => { if (form.name) onSave({ ...form, price: Number(form.price) || 0, qty: Number(form.qty) || 1, id: Date.now().toString(), image: form.image || null, blurb: '', citations: [], pros: [], cons: [], rating: 0, features: [], needs_review: true, source_confidence: null, source_metadata: { extraction: 'manual', validatedAt: new Date().toISOString() }, validation_errors: [], validation_warnings: [{ code: 'manual_entry', message: 'Manual entry should be reviewed before final purchase.' }], source_url: form.url || '' }); }}>Add Product</button>
         <button className="btn-cancel" onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -681,6 +786,8 @@ function Card({ item, selected, justSelected, isBudgetPick, viewMode, onToggle, 
       {item.image ? <img className="card-img" src={item.image} alt={item.name} onError={e => { if (!e.target.dataset.proxied) { e.target.dataset.proxied='1'; e.target.src='https://spiel.nickpalm.com/img?url='+encodeURIComponent(item.image); } else { e.target.onerror=null; e.target.replaceWith(Object.assign(document.createElement('div'), { className:'card-img-placeholder', innerHTML:'&#128444;' })); } }} /> : <div className="card-img-placeholder">&#128444;</div>}
       <div className="card-body">
         <input className="card-edit-input name" value={item.name} onClick={e => e.stopPropagation()} onChange={e => onEdit({ name: e.target.value })} placeholder="Product name" />
+        {item.needs_review && <span className="quality-pill review">Needs review</span>}
+        {!item.needs_review && item.source_confidence != null && item.source_confidence >= 0.85 && <span className="quality-pill good">Verified</span>}
         <div className="card-footer">
           <div className={`card-price${total === 0 ? ' zero' : ''}`} onClick={e => e.stopPropagation()}>
             $<input className="card-edit-input price" type="number" value={item.price || ''} onChange={e => onEdit({ price: Number(e.target.value) || 0 })} placeholder="0" />
@@ -695,6 +802,14 @@ function Card({ item, selected, justSelected, isBudgetPick, viewMode, onToggle, 
           </button>
         )}
         <div className={`card-details${detailsOpen ? ' open' : ''}`} onClick={e => e.stopPropagation()}>
+          {(item.needs_review || (item.validation_errors || []).length > 0 || (item.validation_warnings || []).length > 0) && (
+            <div className={`quality-panel ${(item.validation_errors || []).length > 0 ? 'error' : 'warning'}`}>
+              <strong>{(item.validation_errors || []).length > 0 ? 'Import issues' : 'Import warnings'}</strong>
+              <ul className="quality-list">
+                {[...(item.validation_errors || []), ...(item.validation_warnings || [])].map((m, i) => <li key={i}>{m.message || m.code || String(m)}</li>)}
+              </ul>
+            </div>
+          )}
           <input className="card-edit-input dim" value={item.dim || ''} onChange={e => onEdit({ dim: e.target.value })} placeholder="Dimensions" />
           <input className="card-edit-input notes" value={item.notes || ''} onChange={e => onEdit({ notes: e.target.value })} placeholder="Notes" />
 
@@ -1165,6 +1280,13 @@ function App() {
   const totalCategories = rooms.reduce((s, r) => s + r.categories.length, 0);
   const progress = totalCategories > 0 ? (count / totalCategories) * 100 : 0;
   const hasBudgetPicks = budgetItems.length > 0;
+  const audit = useMemo(() => {
+    const allProducts = rooms.flatMap(r => r.categories.flatMap(c => c.products.map(p => ({ ...p, category: c.name, room: r.name }))));
+    const needsReview = allProducts.filter(p => p.needs_review || (p.validation_errors || []).length || (p.validation_warnings || []).length);
+    const missingImage = allProducts.filter(p => !p.image);
+    const blockers = allProducts.filter(p => blockingImportIssues(p).length > 0);
+    return { allProducts, needsReview, missingImage, blockers };
+  }, [rooms]);
 
   if (loading) {
     return (<div className="app"><div className="skeleton skeleton-banner" /><div className="skeleton skeleton-room" /><div className="skeleton skeleton-room" /></div>);
@@ -1237,6 +1359,19 @@ function App() {
           <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>&#9638; Grid</button>
           <button className={viewMode === 'compact' ? 'active' : ''} onClick={() => setViewMode('compact')}>&#9642; Compact</button>
           <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>&#9776; List</button>
+        </div>
+      </div>
+
+      <div className="audit-bar">
+        <div>
+          <strong>Import audit</strong>
+          <span style={{marginLeft:8}}>Existing data is preserved; new imports are reviewed before save.</span>
+        </div>
+        <div className="audit-items">
+          <span className="audit-chip">{audit.allProducts.length} products</span>
+          <span className={`audit-chip ${audit.needsReview.length ? 'warn' : ''}`}>{audit.needsReview.length} need review</span>
+          <span className={`audit-chip ${audit.missingImage.length ? 'warn' : ''}`}>{audit.missingImage.length} missing image</span>
+          <span className={`audit-chip ${audit.blockers.length ? 'bad' : ''}`}>{audit.blockers.length} blocking issues</span>
         </div>
       </div>
 

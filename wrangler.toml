@@ -13,5 +13,9 @@ database_name = "appliance-picker-db"
 database_id = "2e6315e3-b9eb-4d18-b1fa-bebda081c431"
 
 [[routes]]
+pattern = "renopicker.nickpalm.com/*"
+zone_name = "nickpalm.com"
+
+[[routes]]
 pattern = "365.nickpalm.com/*"
 zone_name = "nickpalm.com"

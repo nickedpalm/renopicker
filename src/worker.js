@@ -30,6 +30,9 @@ async function handleAPI(request, env, path, cors) {
   const db = env.DB;
   const method = request.method;
   const json = (data, status = 200) => Response.json(data, { status, headers: cors });
+  const parseJson = (value, fallback) => {
+    try { return JSON.parse(value || JSON.stringify(fallback)); } catch { return fallback; }
+  };
 
   // GET /api/data — full state: rooms, categories (with search_query), products, selections
   if (path === '/api/data' && method === 'GET') {
@@ -73,10 +76,16 @@ async function handleAPI(request, env, path, cors) {
         ...p,
         qty: p.qty ?? 1,
         unit: p.unit || 'each',
-        citations: JSON.parse(p.citations || '[]'),
-        pros: JSON.parse(p.pros || '[]'),
-        cons: JSON.parse(p.cons || '[]'),
-        features: JSON.parse(p.features || '[]'),
+        citations: parseJson(p.citations, []),
+        pros: parseJson(p.pros, []),
+        cons: parseJson(p.cons, []),
+        features: parseJson(p.features, []),
+        needs_review: Boolean(p.needs_review),
+        source_confidence: p.source_confidence,
+        source_metadata: parseJson(p.source_metadata, {}),
+        validation_errors: parseJson(p.validation_errors, []),
+        validation_warnings: parseJson(p.validation_warnings, []),
+        source_url: p.source_url || p.url || '',
         comments: commentsByProduct[p.id] || [],
       });
     }
@@ -200,19 +209,21 @@ async function handleAPI(request, env, path, cors) {
   // POST /api/products
   if (path === '/api/products' && method === 'POST') {
     const body = await request.json();
-    const { id, category_id, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit } = body;
+    const { id, category_id, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit, needs_review, source_confidence, source_metadata, validation_errors, validation_warnings, source_url } = body;
     const productId = id || crypto.randomUUID();
     // Look up category name for legacy 'category' NOT NULL column
     const cat = category_id ? await db.prepare('SELECT name FROM categories WHERE id = ?').bind(category_id).first() : null;
     const categoryName = cat?.name || body.category || '';
     await db.prepare(`
-      INSERT INTO products (id, category_id, category, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (id, category_id, category, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit, needs_review, source_confidence, source_metadata, validation_errors, validation_warnings, source_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       productId, category_id, categoryName, name || '', dim || '', notes || '', price || 0, url || '', image || null,
       blurb || '', JSON.stringify(citations || []), JSON.stringify(pros || []),
       JSON.stringify(cons || []), rating || 0, JSON.stringify(features || []),
-      qty ?? 1, unit || 'each'
+      qty ?? 1, unit || 'each', needs_review ? 1 : 0, source_confidence ?? null,
+      JSON.stringify(source_metadata || {}), JSON.stringify(validation_errors || []),
+      JSON.stringify(validation_warnings || []), source_url || url || ''
     ).run();
     return json({ success: true, id: productId });
   }
@@ -224,10 +235,11 @@ async function handleAPI(request, env, path, cors) {
     const fields = [];
     const values = [];
     for (const [key, val] of Object.entries(body)) {
-      if (['name', 'dim', 'notes', 'price', 'url', 'image', 'blurb', 'rating', 'qty', 'unit'].includes(key)) {
+      if (['name', 'dim', 'notes', 'price', 'url', 'image', 'blurb', 'rating', 'qty', 'unit', 'needs_review', 'source_confidence', 'source_url'].includes(key)) {
+        if (key === 'needs_review') { fields.push(`${key} = ?`); values.push(val ? 1 : 0); continue; }
         fields.push(`${key} = ?`); values.push(val);
       }
-      if (['citations', 'pros', 'cons', 'features'].includes(key)) {
+      if (['citations', 'pros', 'cons', 'features', 'source_metadata', 'validation_errors', 'validation_warnings'].includes(key)) {
         fields.push(`${key} = ?`); values.push(JSON.stringify(val));
       }
     }
