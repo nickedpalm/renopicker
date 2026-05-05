@@ -1,0 +1,13 @@
+[Unit]
+Description=Image proxy for appliance-budget-picker
+After=network.target
+
+[Service]
+User=nick
+WorkingDirectory=/home/nick/appliance-budget-picker
+ExecStart=/home/nick/.local/bin/uvicorn imgproxy:app --host 127.0.0.1 --port 8767
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

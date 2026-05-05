@@ -19,13 +19,21 @@ export default {
       const url = body.url;
       if (!url) return Response.json({ error: 'url required' }, { status: 400, headers: cors });
 
-      // Use Perplexity to extract product data, then try to get a working image
+      // Use Perplexity to extract product data
       const data = await extractProductFromUrl(PPLX_KEY, url);
 
-      // Try to verify the image works, with multiple fallbacks
+      // Image pipeline: try multiple strategies, always verify
       let image = await verifyImage(data.image);
       if (!image) image = await extractOgImage(url);
-      if (!image) image = await findImageViaPerplexity(PPLX_KEY, data.name);
+      if (!image) image = await findVerifiedImage(PPLX_KEY, data.name);
+      // Try og:image from citation URLs (smaller retailers may not block)
+      if (!image && data.citations?.length) {
+        for (const cite of data.citations.slice(0, 4)) {
+          if (cite === url) continue;
+          image = await extractOgImage(cite);
+          if (image) break;
+        }
+      }
       data.image = image;
 
       return Response.json({ success: true, data: { ...data, url } }, { headers: cors });
@@ -35,37 +43,42 @@ export default {
   }
 };
 
-async function verifyImage(imageUrl) {
-  if (!imageUrl) return null;
-  // Clean up common URL issues
-  let clean = imageUrl.replace(/[",;]+$/, '').trim();
+// Known retailer/CDN domains whose image URLs work in browsers
+const TRUSTED_CDN_RE = /images\.thdstatic\.com|m\.media-amazon\.com|pisces\.bbystatic\.com|mobileimages\.lowes\.com|assets\.ajmadison\.com|media\.kohlsimg\.com|c\.shld\.net|embed\.widencdn\.net|media\.designerappliances\.com|images\.samsung\.com|images\.lg\.com|whirlpoolcorp\.com|kitchenaid-h\.assetsadobe\.com|media\.zestyio\.com|scene7\.com|cloudinary\.com|imgix\.net|images\.webfronts\.com|shopify\.com\/.*\/files\//i;
+
+function cleanImageUrl(url) {
+  if (!url) return null;
+  let clean = url.replace(/[",;]+$/, '').trim();
   if (!/^https?:\/\//i.test(clean)) return null;
+  // Reject URLs with template placeholders (e.g. ${var}, {{var}}, $aj$)
+  if (/\$\{|\{\{|\}\}|\$\(/.test(clean)) return null;
+  return clean;
+}
+
+// Only trust URLs from known CDN domains with image extensions
+function isTrustedImageUrl(url) {
+  const clean = cleanImageUrl(url);
+  if (!clean) return false;
+  // Must be from a known CDN AND have an image extension
+  return TRUSTED_CDN_RE.test(clean) && /\.(jpg|jpeg|png|webp)(\?|$)/i.test(clean);
+}
+
+const IMG_PROXY = 'https://spiel.nickpalm.com';
+
+// Verify image via VPS proxy (the VPS can reach CDNs that block CF Workers)
+async function verifyImage(imageUrl) {
+  const clean = cleanImageUrl(imageUrl);
+  if (!clean) return null;
 
   try {
-    // Use GET with Range header — many CDNs block HEAD requests
-    const resp = await fetch(clean, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Range': 'bytes=0-1023',
-        'Accept': 'image/*,*/*;q=0.8',
-      },
-      redirect: 'follow',
-    });
-    if (resp.ok || resp.status === 206) {
-      const ct = (resp.headers.get('content-type') || '').toLowerCase();
-      // Accept if content-type is image
-      if (ct.startsWith('image/')) return clean;
-      // Accept if URL looks like an image regardless of content-type
-      if (/\.(jpg|jpeg|png|webp|gif|avif|bmp)(\?|$)/i.test(clean)) return clean;
-      // Accept binary responses from known CDNs
-      if (!ct.startsWith('text/') && !ct.includes('html') && !ct.includes('json')) return clean;
-    }
-    return null;
+    const resp = await fetch(IMG_PROXY + '/verify?url=' + encodeURIComponent(clean), { headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.ok ? clean : null;
   } catch { return null; }
 }
 
-async function findImageViaPerplexity(apiKey, productName) {
+async function findVerifiedImage(apiKey, productName) {
   try {
     const resp = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -73,19 +86,30 @@ async function findImageViaPerplexity(apiKey, productName) {
       body: JSON.stringify({
         model: 'sonar',
         messages: [
-          { role: 'system', content: 'Find a JPEG or PNG product image URL that is directly accessible and publicly hosted. Return ONLY the URL. The image URL MUST end in .jpg, .jpeg, .png, or .webp. Try manufacturer websites, Amazon product images (m.media-amazon.com), Best Buy (pisces.bbystatic.com), or appliance review sites. Do NOT return .tif or .svg URLs.' },
-          { role: 'user', content: 'Find a .jpg or .png product image URL for: ' + productName }
+          { role: 'system', content: `Find a real, working product image URL for this appliance. Search for the exact model number.
+
+PREFERRED image sources (these work best):
+- pisces.bbystatic.com (Best Buy CDN) — BEST option, use pattern like pisces.bbystatic.com/image2/BestBuy_US/images/products/XXXX/XXXXXXX_sd.jpg
+- cdn.shopify.com (Shopify stores)
+- images.webfronts.com
+
+AVOID these (they block hotlinking):
+- images.thdstatic.com (Home Depot — blocks external access)
+- m.media-amazon.com (Amazon — blocks external access)
+
+Return ONLY the direct image URL. Do NOT fabricate or guess URLs — only return URLs you actually found. If you cannot find a verified image URL, return the text "NONE".` },
+          { role: 'user', content: 'Find a Best Buy or Shopify product image URL for: ' + productName }
         ],
-        max_tokens: 200
+        max_tokens: 300
       }),
     });
     if (!resp.ok) return null;
     const data = await resp.json();
     const text = (data.choices?.[0]?.message?.content || '').trim();
-    // Extract all URLs and try each one
     const urls = text.match(/https?:\/\/[^\s"'<>)]+/gi) || [];
+    // Verify every URL — even trusted CDN domains can return 404
     for (const u of urls) {
-      const clean = u.replace(/[.,;:!?)]+$/, ''); // strip trailing punctuation
+      const clean = u.replace(/[.,;:!?)]+$/, '');
       const verified = await verifyImage(clean);
       if (verified) return verified;
     }
@@ -116,6 +140,7 @@ async function extractOgImage(url) {
       if (m?.[1]) {
         try {
           const imgUrl = new URL(m[1], baseUrl).href;
+          if (isTrustedImageUrl(imgUrl)) return imgUrl;
           const verified = await verifyImage(imgUrl);
           if (verified) return verified;
         } catch {}
@@ -131,7 +156,14 @@ async function extractOgImage(url) {
           const img = j.image || j?.offers?.image;
           if (img) {
             const imgUrl = Array.isArray(img) ? img[0] : (typeof img === 'object' ? img.url : img);
-            if (imgUrl) { try { return new URL(imgUrl, baseUrl).href; } catch {} }
+            if (imgUrl) {
+              try {
+                const resolved = new URL(imgUrl, baseUrl).href;
+                if (isTrustedImageUrl(resolved)) return resolved;
+                const verified = await verifyImage(resolved);
+                if (verified) return verified;
+              } catch {}
+            }
           }
         } catch {}
       }
@@ -148,6 +180,7 @@ async function extractOgImage(url) {
       if (m?.[1]) {
         try {
           const imgUrl = new URL(m[1], baseUrl).href;
+          if (isTrustedImageUrl(imgUrl)) return imgUrl;
           const verified = await verifyImage(imgUrl);
           if (verified) return verified;
         } catch {}
@@ -160,11 +193,11 @@ async function extractOgImage(url) {
       const srcMatch = tag.match(/src=["']([^"']+)["']/i);
       if (!srcMatch?.[1]) continue;
       const src = srcMatch[1];
-      // Only consider images from known CDNs or with product-like paths
       if (/images\.thdstatic|m\.media-amazon|pisces\.bbystatic|mobileimages\.lowes|assets\.ajmadison/i.test(src) ||
           (/\.(jpg|jpeg|png|webp)/i.test(src) && /product|hero|main|primary|large/i.test(tag))) {
         try {
           const imgUrl = new URL(src, baseUrl).href;
+          if (isTrustedImageUrl(imgUrl)) return imgUrl;
           const verified = await verifyImage(imgUrl);
           if (verified) return verified;
         } catch {}
@@ -184,7 +217,7 @@ Return this exact JSON structure:
   "dim": "dimensions like 29.75\\"W x 69\\"H x 27\\"D",
   "notes": "any notable features or caveats",
   "price": 0,
-  "image": "URL to a product image. IMPORTANT: Use an image URL from a major CDN or the manufacturer's official site (e.g. images.thdstatic.com, m.media-amazon.com, pisces.bbystatic.com, media.kohlsimg.com, or the brand's own website). Do NOT use URLs from retailer domains that block hotlinking. The URL must be directly accessible.",
+  "image": "The EXACT image URL from a CDN like images.thdstatic.com, m.media-amazon.com, pisces.bbystatic.com, mobileimages.lowes.com, or assets.ajmadison.com. Copy the full URL exactly as found on the page. Do NOT make up or guess image URLs — if you cannot find a real CDN image URL, set this to null.",
   "blurb": "2-3 sentence review for a Brooklyn apartment renovation (Clinton Hill Coops, 1940s co-op). Focus on fit for compact NYC kitchen, real review insights, energy efficiency, value. Under 60 words.",
   "pros": ["pro 1", "pro 2", "pro 3"],
   "cons": ["con 1", "con 2"],
@@ -192,7 +225,7 @@ Return this exact JSON structure:
   "features": ["feature 1", "feature 2", "feature 3"]
 }
 
-For price, use the numeric value (no $ sign). For rating, use 1-10 scale. For image, find the actual product image URL from the page.`;
+For price, use the numeric value (no $ sign). For rating, use 1-10 scale.`;
 
   const resp = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',

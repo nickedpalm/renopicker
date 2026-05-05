@@ -88,11 +88,13 @@ async function handleAPI(request, env, path, cors) {
 
     // Build selections map (keyed by category_id)
     const selected = {};
+    const budgetPicks = {};
     for (const s of selections.results) {
       if (s.product_id) selected[s.category_id] = s.product_id;
+      if (s.budget_pick_id) budgetPicks[s.category_id] = s.budget_pick_id;
     }
 
-    return json({ rooms: roomList, selected, people: people.results });
+    return json({ rooms: roomList, selected, budgetPicks, people: people.results });
   }
 
   // --- Rooms ---
@@ -200,11 +202,14 @@ async function handleAPI(request, env, path, cors) {
     const body = await request.json();
     const { id, category_id, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit } = body;
     const productId = id || crypto.randomUUID();
+    // Look up category name for legacy 'category' NOT NULL column
+    const cat = category_id ? await db.prepare('SELECT name FROM categories WHERE id = ?').bind(category_id).first() : null;
+    const categoryName = cat?.name || body.category || '';
     await db.prepare(`
-      INSERT INTO products (id, category_id, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (id, category_id, category, name, dim, notes, price, url, image, blurb, citations, pros, cons, rating, features, qty, unit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      productId, category_id, name || '', dim || '', notes || '', price || 0, url || '', image || null,
+      productId, category_id, categoryName, name || '', dim || '', notes || '', price || 0, url || '', image || null,
       blurb || '', JSON.stringify(citations || []), JSON.stringify(pros || []),
       JSON.stringify(cons || []), rating || 0, JSON.stringify(features || []),
       qty ?? 1, unit || 'each'
@@ -248,6 +253,21 @@ async function handleAPI(request, env, path, cors) {
     const stmt = db.prepare(`
       INSERT INTO selections (category_id, product_id, updated_at) VALUES (?, ?, datetime('now'))
       ON CONFLICT(category_id) DO UPDATE SET product_id = ?, updated_at = datetime('now')
+    `);
+    const batch = [];
+    for (const [categoryId, productId] of Object.entries(body)) {
+      batch.push(stmt.bind(categoryId, productId || null, productId || null));
+    }
+    if (batch.length > 0) await db.batch(batch);
+    return json({ success: true });
+  }
+
+  // PUT /api/budget-picks
+  if (path === '/api/budget-picks' && method === 'PUT') {
+    const body = await request.json();
+    const stmt = db.prepare(`
+      INSERT INTO selections (category_id, budget_pick_id, updated_at) VALUES (?, ?, datetime('now'))
+      ON CONFLICT(category_id) DO UPDATE SET budget_pick_id = ?, updated_at = datetime('now')
     `);
     const batch = [];
     for (const [categoryId, productId] of Object.entries(body)) {

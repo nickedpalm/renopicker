@@ -121,7 +121,13 @@
   .card.selected .card-check { background: #3b82f6; border-color: #3b82f6; transform: scale(1.05); }
   .card-check svg { width: 16px; height: 16px; color: white; opacity: 0; transition: all 0.2s; }
   .card.selected .card-check svg { opacity: 1; }
-  .card-actions-bar { position: absolute; top: 14px; right: 54px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
+  .card-budget-pick { position: absolute; top: 14px; right: 52px; width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; transition: all 0.2s; background: rgba(255,255,255,0.85); backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #9ca3af; }
+  .card:hover .card-budget-pick { background: rgba(255,255,255,0.95); }
+  .card-budget-pick:hover { background: #d1fae5 !important; color: #059669 !important; border-color: #10b981 !important; }
+  .card-budget-pick.active { background: #10b981; border-color: #10b981; color: white; transform: scale(1.05); }
+  .card.budget-pick { box-shadow: 0 0 0 2.5px #10b981, 0 10px 40px rgba(16,185,129,0.15); }
+  .card.selected.budget-pick { box-shadow: 0 0 0 2.5px #3b82f6, 0 0 0 5px #10b981, 0 10px 40px rgba(59,130,246,0.15); }
+  .card-actions-bar { position: absolute; top: 14px; right: 90px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
   .card:hover .card-actions-bar { opacity: 1; }
   .delete-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(4px); color: #9ca3af; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
   .delete-btn:hover { background: #fee2e2; color: #ef4444; }
@@ -438,6 +444,35 @@
   .progress-ring { flex-shrink: 0; }
   .progress-ring circle { transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
 
+  /* Compare modal */
+  .compare-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s; }
+  .compare-modal { background: white; border-radius: 20px; max-width: 95vw; width: 100%; max-height: 90vh; overflow: auto; padding: 28px; position: relative; animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .compare-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 20px; color: #1a1a2e; }
+  .compare-close { position: absolute; top: 14px; right: 18px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #9ca3af; transition: color 0.15s; }
+  .compare-close:hover { color: #1a1a2e; }
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .compare-table th { text-align: left; padding: 10px 12px; background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e5e7eb; position: sticky; top: 0; }
+  .compare-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  .compare-table tr:hover td { background: #f9fafb; }
+  .compare-table .compare-img { width: 60px; height: 60px; object-fit: contain; border-radius: 8px; background: #fafafa; }
+  .compare-table .compare-name { font-weight: 600; color: #1a1a2e; max-width: 200px; }
+  .compare-table .compare-price { font-weight: 700; color: #1a1a2e; white-space: nowrap; }
+  .compare-table .compare-rating { font-weight: 600; }
+  .compare-table .compare-selected { background: #eff6ff; }
+  .compare-table .compare-budget { background: #ecfdf5; }
+  .compare-badges { display: flex; gap: 4px; margin-top: 4px; }
+  .compare-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+  .compare-badge.pick { background: #dbeafe; color: #2563eb; }
+  .compare-badge.budget { background: #d1fae5; color: #059669; }
+
+  /* Budget banner dual totals */
+  .budget-totals { display: flex; gap: 24px; align-items: flex-end; }
+  .budget-secondary { opacity: 0.7; }
+  .budget-secondary .total { font-size: 1.6rem; }
+  .budget-secondary .label { font-size: 0.72rem; }
+  .budget-diff { font-size: 0.82rem; opacity: 0.6; margin-top: 2px; }
+  .budget-diff.savings { color: #86efac; opacity: 1; }
+
   /* Loading skeleton */
   .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -445,8 +480,7 @@
   .skeleton-banner { height: 100px; border-radius: 16px; margin-bottom: 32px; }
 
   /* Smooth collapse transitions */
-  .room-body { transition: max-height 0.3s ease, opacity 0.2s ease; overflow: hidden; }
-  .room-body.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0; padding-bottom: 0; display: block; }
+  .room-body.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; display: block; }
 
   /* Budget banner counter animation */
   .budget-banner .total { transition: all 0.3s ease; }
@@ -613,7 +647,7 @@ function parseBlurb(text, citations) {
   return html;
 }
 
-function Card({ item, selected, justSelected, viewMode, onToggle, onDelete, onBlurbLoaded, onUpdateQty, onEdit, onMoveUp, onMoveDown, onAddComment, onDeleteComment, canComment, isFirst, isLast }) {
+function Card({ item, selected, justSelected, isBudgetPick, viewMode, onToggle, onToggleBudget, onDelete, onBlurbLoaded, onUpdateQty, onEdit, onMoveUp, onMoveDown, onAddComment, onDeleteComment, canComment, isFirst, isLast }) {
   const [blurbLoading, setBlurbLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -635,15 +669,16 @@ function Card({ item, selected, justSelected, viewMode, onToggle, onDelete, onBl
   const blurbHtml = useMemo(() => item.blurb ? parseBlurb(item.blurb, item.citations) : '', [item.blurb, item.citations]);
   const total = itemTotal(item);
   return (
-    <div className={`card${selected ? ' selected' : ''}${justSelected ? ' just-selected' : ''}`} onClick={onToggle}>
+    <div className={`card${selected ? ' selected' : ''}${justSelected ? ' just-selected' : ''}${isBudgetPick ? ' budget-pick' : ''}`} onClick={e => { if (e.target.closest('a, button, input, select, textarea')) return; onToggle(); }}>
       <div className="card-actions-bar">
         <button className="delete-btn" title="Move up" disabled={isFirst} onClick={e => { e.stopPropagation(); onMoveUp(); }} style={isFirst ? {opacity:0.3} : {}}>&#9650;</button>
         <button className="delete-btn" title="Move down" disabled={isLast} onClick={e => { e.stopPropagation(); onMoveDown(); }} style={isLast ? {opacity:0.3} : {}}>&#9660;</button>
         <button className="delete-btn" title="Remove" onClick={e => { e.stopPropagation(); onDelete(); }}>&times;</button>
       </div>
+      <button className={`card-budget-pick${isBudgetPick ? ' active' : ''}`} title="Budget pick" onClick={e => { e.stopPropagation(); e.preventDefault(); onToggleBudget(); }}>$</button>
       <div className="card-check"><CheckIcon /></div>
       {item.rating > 0 && <div className="card-rating-badge"><span className="rb-star">★</span> {item.rating}/10</div>}
-      {item.image ? <img className="card-img" src={item.image} alt={item.name} onError={e => { e.target.onerror=null; e.target.replaceWith(Object.assign(document.createElement('div'), { className:'card-img-placeholder', innerHTML:'&#128444;' })); }} /> : <div className="card-img-placeholder">&#128444;</div>}
+      {item.image ? <img className="card-img" src={item.image} alt={item.name} onError={e => { if (!e.target.dataset.proxied) { e.target.dataset.proxied='1'; e.target.src='https://spiel.nickpalm.com/img?url='+encodeURIComponent(item.image); } else { e.target.onerror=null; e.target.replaceWith(Object.assign(document.createElement('div'), { className:'card-img-placeholder', innerHTML:'&#128444;' })); } }} /> : <div className="card-img-placeholder">&#128444;</div>}
       <div className="card-body">
         <input className="card-edit-input name" value={item.name} onClick={e => e.stopPropagation()} onChange={e => onEdit({ name: e.target.value })} placeholder="Product name" />
         <div className="card-footer">
@@ -742,20 +777,38 @@ function Card({ item, selected, justSelected, viewMode, onToggle, onDelete, onBl
   );
 }
 
-function Lookbook({ room, selectedItems, onClose }) {
+function Lookbook({ room, selectedItems, budgetItems, onClose }) {
+  const [mode, setMode] = useState('primary');
   if (!room) return null;
-  const roomItems = selectedItems.filter(i => i.roomId === room.id);
-  const roomTotal = roomItems.reduce((s, i) => s + itemTotal(i), 0);
+  const primaryItems = selectedItems.filter(i => i.roomId === room.id);
+  const budgetRoomItems = budgetItems.filter(i => i.roomId === room.id);
+  const items = mode === 'primary' ? primaryItems : budgetRoomItems;
+  const roomTotal = items.reduce((s, i) => s + itemTotal(i), 0);
+  const hasBoth = primaryItems.length > 0 && budgetRoomItems.length > 0;
+  const primaryTotal = primaryItems.reduce((s, i) => s + itemTotal(i), 0);
+  const budgetRoomTotal = budgetRoomItems.reduce((s, i) => s + itemTotal(i), 0);
   return (
     <div className="lookbook-overlay" onClick={onClose}>
       <div className="lookbook-modal" onClick={e => e.stopPropagation()}>
         <button className="lookbook-close" onClick={onClose}>&times;</button>
         <div className="lookbook-title">{room.name} Lookbook</div>
-        <div className="lookbook-subtitle">Selected items for this room</div>
-        {roomItems.length > 0 ? (
+        {(primaryItems.length > 0 || budgetRoomItems.length > 0) && (
+          <div style={{display:'flex', gap: 8, marginBottom: 16}}>
+            <button onClick={() => setMode('primary')} style={{padding:'6px 16px', borderRadius: 20, border: mode === 'primary' ? '2px solid #3b82f6' : '1.5px solid #e5e7eb', background: mode === 'primary' ? '#eff6ff' : 'white', color: mode === 'primary' ? '#2563eb' : '#6b7280', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit'}}>
+              Primary{primaryItems.length > 0 && ` ($${primaryTotal.toLocaleString()})`}
+            </button>
+            <button onClick={() => setMode('budget')} style={{padding:'6px 16px', borderRadius: 20, border: mode === 'budget' ? '2px solid #10b981' : '1.5px solid #e5e7eb', background: mode === 'budget' ? '#ecfdf5' : 'white', color: mode === 'budget' ? '#059669' : '#6b7280', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit'}}>
+              Budget{budgetRoomItems.length > 0 && ` ($${budgetRoomTotal.toLocaleString()})`}
+            </button>
+            {hasBoth && primaryTotal > budgetRoomTotal && (
+              <span style={{alignSelf:'center', fontSize:'0.78rem', color:'#059669', fontWeight:600}}>Save ${(primaryTotal - budgetRoomTotal).toLocaleString()}</span>
+            )}
+          </div>
+        )}
+        {items.length > 0 ? (
           <>
             <div className="lookbook-grid">
-              {roomItems.map(item => (
+              {items.map(item => (
                 <div className="lookbook-item" key={item.id}>
                   {item.image && <img className="lookbook-item-img" src={item.image} alt={item.name} onError={e => e.target.style.display='none'} />}
                   <div className="lookbook-item-body">
@@ -767,11 +820,60 @@ function Lookbook({ room, selectedItems, onClose }) {
                 </div>
               ))}
             </div>
-            <div className="lookbook-total">Room Total: ${roomTotal.toLocaleString()}</div>
+            <div className="lookbook-total">{mode === 'budget' ? 'Budget' : 'Room'} Total: ${roomTotal.toLocaleString()}</div>
           </>
         ) : (
-          <div className="lookbook-empty">No items selected in {room.name} yet. Click products to select them.</div>
+          <div className="lookbook-empty">No {mode === 'budget' ? 'budget picks' : 'items selected'} in {room.name} yet.</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CompareModal({ category, products, selectedId, budgetPickId, onClose }) {
+  if (!products || products.length === 0) return null;
+  const sorted = [...products].sort((a, b) => (a.price || 0) - (b.price || 0));
+  return (
+    <div className="compare-overlay" onClick={onClose}>
+      <div className="compare-modal" onClick={e => e.stopPropagation()}>
+        <button className="compare-close" onClick={onClose}>&times;</button>
+        <div className="compare-title">Compare {category}</div>
+        <table className="compare-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Product</th>
+              <th>Price</th>
+              <th>Dimensions</th>
+              <th>Rating</th>
+              <th>Pros</th>
+              <th>Cons</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(p => {
+              const isSel = p.id === selectedId;
+              const isBudget = p.id === budgetPickId;
+              return (
+                <tr key={p.id} className={isSel ? 'compare-selected' : isBudget ? 'compare-budget' : ''}>
+                  <td>{p.image ? <img className="compare-img" src={p.image} alt="" /> : <div style={{width:60,height:60,background:'#f5f5f5',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',color:'#d1d5db',fontSize:'1.2rem'}}>&#128444;</div>}</td>
+                  <td>
+                    <div className="compare-name">{p.name}</div>
+                    <div className="compare-badges">
+                      {isSel && <span className="compare-badge pick">Pick</span>}
+                      {isBudget && <span className="compare-badge budget">Budget</span>}
+                    </div>
+                  </td>
+                  <td className="compare-price">${itemTotal(p).toLocaleString()}</td>
+                  <td style={{fontSize:'0.8rem', color:'#6b7280'}}>{p.dim || '-'}</td>
+                  <td className="compare-rating" style={{color: (p.rating||0) >= 7 ? '#059669' : (p.rating||0) >= 5 ? '#d97706' : '#9ca3af'}}>{p.rating ? p.rating + '/10' : '-'}</td>
+                  <td style={{fontSize:'0.78rem'}}>{(p.pros||[]).length > 0 ? <ul style={{margin:0,paddingLeft:16}}>{p.pros.slice(0,3).map((pr,i) => <li key={i} style={{marginBottom:2}}>{pr}</li>)}</ul> : '-'}</td>
+                  <td style={{fontSize:'0.78rem'}}>{(p.cons||[]).length > 0 ? <ul style={{margin:0,paddingLeft:16}}>{p.cons.slice(0,2).map((c,i) => <li key={i} style={{marginBottom:2}}>{c}</li>)}</ul> : '-'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -780,9 +882,11 @@ function Lookbook({ room, selectedItems, onClose }) {
 function App() {
   const [rooms, setRooms] = useState([]);
   const [selected, setSelected] = useState({});
+  const [budgetPicks, setBudgetPicks] = useState({});
   const [loading, setLoading] = useState(true);
   const [addingTo, setAddingTo] = useState(null);
   const [importingTo, setImportingTo] = useState(null);
+  const [comparingCat, setComparingCat] = useState(null);
   const [addingCatTo, setAddingCatTo] = useState(null);
   const [newCatName, setNewCatName] = useState('');
   const [newCatSearch, setNewCatSearch] = useState('');
@@ -808,6 +912,7 @@ function App() {
       .then(resp => {
         if (resp.rooms) setRooms(resp.rooms);
         if (resp.selected) setSelected(resp.selected);
+        if (resp.budgetPicks) setBudgetPicks(resp.budgetPicks);
         if (resp.people) setPeople(resp.people);
       })
       .catch(err => console.error('Failed to load:', err))
@@ -818,6 +923,7 @@ function App() {
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape') {
+        if (comparingCat) { setComparingCat(null); return; }
         if (lookbookRoom) { setLookbookRoom(null); return; }
         if (addingTo) { setAddingTo(null); return; }
         if (importingTo) { setImportingTo(null); return; }
@@ -827,7 +933,7 @@ function App() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [lookbookRoom, addingTo, importingTo, addingCatTo, addingRoom]);
+  }, [comparingCat, lookbookRoom, addingTo, importingTo, addingCatTo, addingRoom]);
 
   const toggleRoom = (roomId) => setCollapsedRooms(prev => ({ ...prev, [roomId]: !prev[roomId] }));
   const toggleCat = (catId) => setCollapsedCats(prev => ({ ...prev, [catId]: !prev[catId] }));
@@ -838,6 +944,15 @@ function App() {
       const next = isDeselect ? { ...prev, [catId]: undefined } : { ...prev, [catId]: productId };
       if (!isDeselect) { setJustSelected(productId); setTimeout(() => setJustSelected(null), 500); }
       fetch(API_BASE + '/api/selections', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [catId]: next[catId] || null }) }).catch(() => {});
+      return next;
+    });
+  };
+
+  const toggleBudget = (catId, productId) => {
+    setBudgetPicks(prev => {
+      const isDeselect = prev[catId] === productId;
+      const next = isDeselect ? { ...prev, [catId]: undefined } : { ...prev, [catId]: productId };
+      fetch(API_BASE + '/api/budget-picks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [catId]: next[catId] || null }) }).catch(() => {});
       return next;
     });
   };
@@ -1034,10 +1149,22 @@ function App() {
     return items;
   }, [rooms, selected]);
 
+  const budgetItems = useMemo(() => {
+    const items = [];
+    rooms.forEach(room => room.categories.forEach(cat => {
+      const bId = budgetPicks[cat.id];
+      const bProduct = bId ? cat.products.find(p => p.id === bId) : null;
+      if (bProduct) items.push({ ...bProduct, category: cat.name, categoryId: cat.id, roomId: room.id });
+    }));
+    return items;
+  }, [rooms, budgetPicks]);
+
   const total = selectedItems.reduce((s, i) => s + itemTotal(i), 0);
+  const budgetTotal = budgetItems.reduce((s, i) => s + itemTotal(i), 0);
   const count = selectedItems.length;
   const totalCategories = rooms.reduce((s, r) => s + r.categories.length, 0);
   const progress = totalCategories > 0 ? (count / totalCategories) * 100 : 0;
+  const hasBudgetPicks = budgetItems.length > 0;
 
   if (loading) {
     return (<div className="app"><div className="skeleton skeleton-banner" /><div className="skeleton skeleton-room" /><div className="skeleton skeleton-room" /></div>);
@@ -1082,10 +1209,21 @@ function App() {
       <div className="budget-banner">
         <div style={{display:'flex', alignItems:'center', gap: 20}}>
           {totalCategories > 0 && <ProgressRing progress={progress} />}
-          <div>
-            <div className="label">Total Budget</div>
-            <div className="total">${total.toLocaleString()}</div>
-            <div className="count">{count}/{totalCategories} categories selected</div>
+          <div className="budget-totals">
+            <div>
+              <div className="label">Total Budget</div>
+              <div className="total">${total.toLocaleString()}</div>
+              <div className="count">{count}/{totalCategories} categories selected</div>
+            </div>
+            {hasBudgetPicks && (
+              <div className="budget-secondary">
+                <div className="label">Budget Option</div>
+                <div className="total">${budgetTotal.toLocaleString()}</div>
+                {total > 0 && budgetTotal < total && (
+                  <div className="budget-diff savings">Save ${(total - budgetTotal).toLocaleString()}</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="selected-list">
@@ -1146,6 +1284,7 @@ function App() {
                         <button className="cat-delete-btn" title="Remove category" onClick={() => deleteCategory(room.id, cat.id)}>&times;</button>
                       </div>
                       <div className="cat-actions">
+                        {cat.products.length >= 2 && <button className="action-btn" style={{background:'#f5f3ff',color:'#7c3aed',borderColor:'#ddd6fe'}} onClick={() => setComparingCat(cat)}>Compare</button>}
                         {cat.search_query && <a className="action-btn purple" href={'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(cat.search_query)} target="_blank" rel="noopener">&#128269;</a>}
                         <button className="action-btn blue" onClick={() => { setImportingTo(importingTo === cat.id ? null : cat.id); setAddingTo(null); }}>{importingTo === cat.id ? 'Cancel' : 'Import'}</button>
                         <button className="action-btn green" onClick={() => { setAddingTo(addingTo === cat.id ? null : cat.id); setImportingTo(null); }}>{addingTo === cat.id ? 'Cancel' : '+ Add'}</button>
@@ -1159,9 +1298,11 @@ function App() {
                           {cat.products.map((item, ci2) => (
                             <Card key={item.id} item={item} selected={selected[cat.id] === item.id}
                               justSelected={justSelected === item.id}
+                              isBudgetPick={budgetPicks[cat.id] === item.id}
                               viewMode={viewMode}
                               isFirst={ci2 === 0} isLast={ci2 === cat.products.length - 1}
                               onToggle={() => toggle(cat.id, item.id)}
+                              onToggleBudget={() => toggleBudget(cat.id, item.id)}
                               onDelete={() => deleteProduct(cat.id, item.id)}
                               onBlurbLoaded={(id, reviewData) => updateBlurb(cat.id, id, reviewData)}
                               onUpdateQty={(id, data) => updateProductQty(cat.id, id, data)}
@@ -1276,7 +1417,8 @@ function App() {
         </div>
       </div>}
 
-      {lookbookRoom && <Lookbook room={rooms.find(r => r.id === lookbookRoom)} selectedItems={selectedItems} onClose={() => setLookbookRoom(null)} />}
+      {lookbookRoom && <Lookbook room={rooms.find(r => r.id === lookbookRoom)} selectedItems={selectedItems} budgetItems={budgetItems} onClose={() => setLookbookRoom(null)} />}
+      {comparingCat && <CompareModal category={comparingCat.name} products={comparingCat.products} selectedId={selected[comparingCat.id]} budgetPickId={budgetPicks[comparingCat.id]} onClose={() => setComparingCat(null)} />}
       <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   );
