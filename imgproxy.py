@@ -4,6 +4,7 @@ CF Workers can't fetch retailer CDN images (blocked), but this VPS can reach mos
 Endpoints:
   GET /img?url=<encoded_url>  — proxy the image (caches to disk)
   GET /verify?url=<encoded_url> — return {"ok":true/false, "url":"...", "ct":"..."}
+  GET /page?url=<encoded_url> — return fetched retailer HTML for parser evidence
 """
 import hashlib, os, asyncio
 from pathlib import Path
@@ -19,10 +20,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 CACHE_DIR = Path("/tmp/imgproxy-cache")
 CACHE_DIR.mkdir(exist_ok=True)
 
-HEADERS = {
+BASE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "image/*,*/*;q=0.8",
 }
+IMAGE_HEADERS = {**BASE_HEADERS, "Accept": "image/*,*/*;q=0.8"}
+HTML_HEADERS = {**BASE_HEADERS, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 
 async def fetch_image(url: str) -> tuple[bytes | None, str]:
     """Fetch image, return (bytes, content_type) or (None, '')."""
@@ -36,7 +38,7 @@ async def fetch_image(url: str) -> tuple[bytes | None, str]:
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-            resp = await client.get(url, headers=HEADERS)
+            resp = await client.get(url, headers=IMAGE_HEADERS)
             ct = resp.headers.get("content-type", "").lower()
             if resp.status_code == 200 and ct.startswith("image/") and len(resp.content) > 1000:
                 cache_path.write_bytes(resp.content)
@@ -45,6 +47,25 @@ async def fetch_image(url: str) -> tuple[bytes | None, str]:
     except Exception:
         pass
     return None, ""
+
+
+@app.get("/page")
+async def page(url: str = Query(...)):
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            resp = await client.get(url, headers=HTML_HEADERS)
+            ct = resp.headers.get("content-type", "").lower()
+            if resp.status_code == 200 and "text/html" in ct:
+                return {
+                    "ok": True,
+                    "url": url,
+                    "finalUrl": str(resp.url),
+                    "status": resp.status_code,
+                    "html": resp.text[:1500000],
+                }
+            return {"ok": False, "url": url, "status": resp.status_code, "ct": ct}
+    except Exception as exc:
+        return {"ok": False, "url": url, "error": str(exc)}
 
 
 @app.get("/verify")

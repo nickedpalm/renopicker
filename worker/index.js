@@ -20,19 +20,26 @@ export default {
       if (!url) return Response.json({ error: 'valid http(s) url required' }, { status: 400, headers: cors });
 
       const expectedCategory = typeof body.category === 'string' ? body.category.trim() : '';
-      const page = await fetchProductPage(url);
+      let page = await fetchProductPage(url);
+      if (!page.html) page = await fetchProductPageViaProxy(url, page);
       const evidence = page.html ? extractPageEvidence(page.html, page.finalUrl || url) : emptyEvidence();
 
       let data = await extractProductFromUrl(PPLX_KEY, url, evidence, expectedCategory);
       data = normalizeProductData(data);
 
-      let image = await findVerifiedImageFromCandidates([...evidence.imageCandidates, data.image]);
-      if (!image) image = await extractOgImage(url);
-      if (!image) image = await findVerifiedImage(PPLX_KEY, data.name, data.model || '');
+      const extractedImage = imageAllowedForSource(data.image, url) ? data.image : null;
+      let image = await findVerifiedImageFromCandidates([...evidence.imageCandidates, extractedImage]);
+      if (image && !imageAllowedForSource(image, url)) image = null;
+      if (!image) {
+        const ogImage = await extractOgImage(url);
+        image = imageAllowedForSource(ogImage, url) ? ogImage : null;
+      }
+      if (!image && page.html) image = await findVerifiedImage(PPLX_KEY, data.name, data.model || '', url);
       if (!image && data.citations?.length) {
         for (const cite of data.citations.slice(0, 4)) {
           if (sameUrl(cite, url)) continue;
-          image = await extractOgImage(cite);
+          const citationImage = await extractOgImage(cite);
+          image = imageAllowedForSource(citationImage, url) ? citationImage : null;
           if (image) break;
         }
       }
@@ -43,6 +50,7 @@ export default {
       data.sourceMetadata = {
         extraction: 'perplexity-sonar-with-page-evidence',
         pageFetchOk: Boolean(page.html),
+        pageFetchViaProxy: Boolean(page.viaProxy),
         sourceUrl: url,
         finalUrl: page.finalUrl || url,
         expectedCategory: expectedCategory || null,
@@ -108,7 +116,12 @@ function cleanText(value) {
 
 function cleanImageUrl(url) {
   if (!url) return null;
-  const clean = String(url).replace(/\\u002F/g, '/').replace(/[",;]+$/, '').trim();
+  const clean = String(url)
+    .replace(/\\u002F/gi, '/')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/g, '&')
+    .replace(/[",;]+$/, '')
+    .trim();
   if (!/^https?:\/\//i.test(clean)) return null;
   if (/\$\{|\{\{|\}\}|\$\(/.test(clean)) return null;
   return clean;
@@ -146,6 +159,18 @@ async function fetchProductPage(url) {
     return { ok: true, status: resp.status, finalUrl: resp.url || url, html: await resp.text() };
   } catch (err) {
     return { ok: false, status: 0, finalUrl: url, html: '', error: err.message };
+  }
+}
+
+async function fetchProductPageViaProxy(url, originalPage) {
+  try {
+    const resp = await fetch(IMG_PROXY + '/page?url=' + encodeURIComponent(url), { headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) return originalPage;
+    const data = await resp.json();
+    if (!data.ok || !data.html) return originalPage;
+    return { ok: true, status: data.status || 200, finalUrl: data.finalUrl || url, html: data.html, viaProxy: true };
+  } catch {
+    return originalPage;
   }
 }
 
@@ -215,15 +240,43 @@ function firstMeta(html, keys) {
 
 function findImageUrls(html) {
   const urls = [];
-  for (const m of html.matchAll(/https?:\\?\/\\?\/[^\s"'<>]+?\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]+)?/gi)) {
-    const u = m[0].replace(/\\\//g, '/');
-    if (!urls.includes(u)) urls.push(u);
+  const add = value => {
+    const clean = cleanImageUrl(value);
+    if (clean && !urls.includes(clean)) urls.push(clean);
+  };
+
+  const htmlVariants = [
+    html,
+    html.replace(/\\u002F/gi, '/'),
+    html.replace(/\\\//g, '/'),
+  ];
+
+  for (const source of htmlVariants) {
+    for (const m of source.matchAll(/https?:\/\/[^\s"'<>]+?\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]+)?/gi)) {
+      add(m[0]);
+    }
   }
+
   for (const tag of html.match(/<img[^>]+>/gi) || []) {
-    const m = tag.match(/(?:src|data-src|data-original)=["']([^"']+)["']/i);
-    if (m?.[1] && !urls.includes(m[1])) urls.push(m[1]);
+    for (const attr of ['src', 'data-src', 'data-original', 'srcset', 'data-srcset']) {
+      const m = tag.match(new RegExp(attr + "=[\\\"']([^\\\"']+)[\\\"']", 'i'));
+      if (!m?.[1]) continue;
+      for (const part of m[1].split(',')) add(part.trim().split(/\s+/)[0]);
+    }
   }
-  return urls;
+
+  return urls.sort((a, b) => imageCandidateScore(b) - imageCandidateScore(a));
+}
+
+function imageCandidateScore(url) {
+  const clean = cleanImageUrl(url) || '';
+  let score = 0;
+  if (isTrustedImageUrl(clean)) score += 20;
+  if (/assets\.wfcdn\.com|secure\.img1-[^/]+\.wfcdn\.com/i.test(clean)) score += 15;
+  if (/resize-h(600|800|1000|1200)|w(600|800|1000|1200)/i.test(clean)) score += 8;
+  if (/resize-h(48|50|96)|w(48|50|96)/i.test(clean)) score -= 10;
+  if (/default_name|placeholder|sprite|logo|icon/i.test(clean)) score -= 12;
+  return score;
 }
 
 function findJsonLdBlocks(html) {
@@ -281,8 +334,10 @@ async function verifyImage(imageUrl) {
   } catch { return null; }
 }
 
-async function findVerifiedImage(apiKey, productName, model) {
+async function findVerifiedImage(apiKey, productName, model, sourceUrl) {
   if (!productName || productName === 'Unknown Product') return null;
+  const sourceHost = host(sourceUrl);
+  const allowed = imageSourceRule(sourceHost);
   try {
     const resp = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -290,8 +345,8 @@ async function findVerifiedImage(apiKey, productName, model) {
       body: JSON.stringify({
         model: 'sonar',
         messages: [
-          { role: 'system', content: 'Find a real, working direct product image URL for the exact product. Prefer manufacturer, Best Buy, Shopify, webfronts, or image CDN URLs. Return ONLY direct image URLs or NONE. Do not guess.' },
-          { role: 'user', content: 'Product: ' + productName + (model ? ' | Model: ' + model : '') }
+          { role: 'system', content: 'Find a real, working direct product image URL for the exact product. Use only the source retailer page/domain or its official image CDN. For Wayfair use assets.wfcdn.com or another wfcdn.com URL only. Return ONLY direct image URLs or NONE. Do not use images from other retailers. Do not guess.' },
+          { role: 'user', content: 'Source URL: ' + (sourceUrl || '') + '\nAllowed image host rule: ' + allowed.description + '\nProduct: ' + productName + (model ? ' | Model: ' + model : '') }
         ],
         max_tokens: 300
       }),
@@ -299,9 +354,29 @@ async function findVerifiedImage(apiKey, productName, model) {
     if (!resp.ok) return null;
     const data = await resp.json();
     const text = (data.choices?.[0]?.message?.content || '').trim();
-    const urls = text.match(/https?:\/\/[^\s"'<>)]+/gi) || [];
-    return await findVerifiedImageFromCandidates(urls.map(u => u.replace(/[.,;:!?)]+$/, '')));
+    const urls = (text.match(/https?:\/\/[^\s"'<>)]+/gi) || [])
+      .map(u => u.replace(/[.,;:!?)]+$/, ''))
+      .filter(u => allowed.test(u));
+    return await findVerifiedImageFromCandidates(urls);
   } catch { return null; }
+}
+
+function imageAllowedForSource(imageUrl, sourceUrl) {
+  if (!imageUrl) return false;
+  return imageSourceRule(host(sourceUrl)).test(imageUrl);
+}
+
+function imageSourceRule(sourceHost) {
+  const rules = [
+    { host: /(^|\.)wayfair\.com$/, description: 'wfcdn.com or wayfair.com only', test: url => /(^|\.)wfcdn\.com$|(^|\.)wayfair\.com$/.test(host(url)) },
+    { host: /(^|\.)homedepot\.com$/, description: 'thdstatic.com or homedepot.com only', test: url => /(^|\.)thdstatic\.com$|(^|\.)homedepot\.com$/.test(host(url)) },
+    { host: /(^|\.)lowes\.com$/, description: 'lowes.com only', test: url => /(^|\.)lowes\.com$/.test(host(url)) },
+    { host: /(^|\.)bestbuy\.com$/, description: 'bbystatic.com or bestbuy.com only', test: url => /(^|\.)bbystatic\.com$|(^|\.)bestbuy\.com$/.test(host(url)) },
+    { host: /(^|\.)amazon\.com$/, description: 'media-amazon.com or amazon.com only', test: url => /(^|\.)media-amazon\.com$|(^|\.)amazon\.com$/.test(host(url)) },
+  ];
+  const rule = rules.find(r => r.host.test(sourceHost || ''));
+  if (rule) return rule;
+  return { description: 'same source host or trusted product CDN', test: url => !sourceHost || host(url) === sourceHost || isTrustedImageUrl(url) };
 }
 
 async function extractOgImage(url) {
