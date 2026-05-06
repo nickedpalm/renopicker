@@ -500,7 +500,7 @@ function validateProductData(data, { url, expectedCategory, evidence, page }) {
   const hasSourceCitation = citationHosts.some(h => h === sourceHost || h.endsWith('.' + sourceHost) || sourceHost.endsWith('.' + h));
   if (!page.html && !hasSourceCitation && sourceHost) add(warnings, 'source_not_cited', 'Extractor citations do not include the source retailer host.', 0.15);
 
-  if (evidence.title || evidence.products.length) {
+  if (evidence.products.length || (evidence.title && !isGenericPageTitle(evidence.title))) {
     const evidenceText = [evidence.title, ...evidence.products.map(p => [p.brand, p.name, p.sku].join(' '))].join(' ').toLowerCase();
     const extractedText = [data.brand, data.name, data.model].join(' ').toLowerCase();
     const tokens = meaningfulTokens(extractedText);
@@ -529,6 +529,11 @@ function validateProductData(data, { url, expectedCategory, evidence, page }) {
 
 function host(value) {
   try { return new URL(value).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
+}
+
+function isGenericPageTitle(title) {
+  const t = cleanText(title).toLowerCase();
+  return !t || t === 'wayfair.com - online home store for furniture, decor, outdoors & more' || t.includes('access to this page has been denied');
 }
 
 function meaningfulTokens(text) {
