@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 User=nick
-WorkingDirectory=/home/nick/appliance-budget-picker
-ExecStart=/home/nick/.local/bin/uvicorn imgproxy:app --host 127.0.0.1 --port 8767
+WorkingDirectory=/home/nick/nickpalm/renopicker
+ExecStart=/home/nick/.local/bin/uvicorn imgproxy:app --host 127.0.0.1 --port 8768
 Restart=always
-RestartSec=3
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
